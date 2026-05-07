@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#111318">
+    <title>Fat Check</title>
+    <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="assets/logo.svg">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js" defer></script>
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div class="brand-lockup" aria-label="Fat Check">
+          <img class="logo" src="assets/logo.svg" alt="">
+          <div>
+            <p class="eyebrow">Fat Check</p>
+            <h1>Calories</h1>
+          </div>
+        </div>
+        <button class="icon-button" id="refreshButton" type="button" aria-label="Refresh" title="Refresh">
+          <i data-lucide="refresh-cw"></i>
+        </button>
+      </header>
+
+      <section class="summary-band" aria-labelledby="weekTotalLabel">
+        <div>
+          <p id="weekTotalLabel" class="eyebrow">This week</p>
+          <p class="week-total"><span id="weekTotal">0</span><span> kcal</span></p>
+        </div>
+        <div class="today-pill">
+          <span>Today</span>
+          <strong id="todayTotal">0</strong>
+        </div>
+      </section>
+
+      <section class="chart-panel" aria-label="Weekly calories">
+        <div class="panel-title-row">
+          <h2>Week graph</h2>
+          <span id="weekRange">-</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="weekChart" aria-label="Calories by day" role="img"></canvas>
+        </div>
+      </section>
+
+      <section class="entry-panel" aria-labelledby="addCaloriesTitle">
+        <div class="panel-title-row">
+          <h2 id="addCaloriesTitle">Add calories</h2>
+          <button class="icon-button ghost" id="settingsButton" type="button" aria-label="BitStore key" title="BitStore key">
+            <i data-lucide="key-round"></i>
+          </button>
+        </div>
+
+        <form id="calorieForm" class="calorie-form" autocomplete="off">
+          <label class="calorie-input">
+            <span>kcal</span>
+            <input id="calorieInput" name="calories" type="number" inputmode="numeric" min="1" max="99999999" placeholder="450" required>
+          </label>
+          <button class="primary-button" type="submit">
+            <i data-lucide="plus"></i>
+            <span>Add</span>
+          </button>
+        </form>
+
+        <div class="quick-row" aria-label="Quick add">
+          <button type="button" data-quick="100">+100</button>
+          <button type="button" data-quick="250">+250</button>
+          <button type="button" data-quick="500">+500</button>
+          <button type="button" data-quick="750">+750</button>
+        </div>
+
+        <form id="keyForm" class="key-form" autocomplete="off" hidden>
+          <label>
+            <span>Write key</span>
+            <input id="writeKeyInput" name="writeKey" type="password" placeholder="X-BitStore-Key">
+          </label>
+          <div class="key-actions">
+            <button class="secondary-button" type="submit">Save</button>
+            <button class="text-button" id="clearKeyButton" type="button">Forget</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="history-panel" aria-labelledby="recentTitle">
+        <div class="panel-title-row">
+          <h2 id="recentTitle">Recent</h2>
+          <span id="recordCount">0 records</span>
+        </div>
+        <ol id="recentList" class="recent-list"></ol>
+      </section>
+
+      <p id="statusMessage" class="status-message" role="status" aria-live="polite"></p>
+    </main>
+  </body>
+</html>
