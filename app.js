@@ -1,15 +1,16 @@
-const API_BASE = "https://bitstorehome.azurewebsites.net/api/buckets/fat-check";
+const BITSTORE_BASE = "https://bitstorehome.azurewebsites.net";
+const BUCKET_STORAGE = "fat-check.bucket-slug";
 const KEY_STORAGE = "fat-check.write-key";
 const GOAL_STORAGE = "fat-check.daily-goal";
 const LEGACY_GOAL_STORAGE = "fat-check.weekly-goal";
-const DEFAULT_WRITE_KEY = "6864b11a2a3539fd1f7e4b69c29d9953d638c94b9b2f1cd9";
 const GOAL_PREFIX = "g";
 const MAX_VALUE_LENGTH = 8;
 
 const state = {
   records: [],
   chart: null,
-  writeKey: localStorage.getItem(KEY_STORAGE) || DEFAULT_WRITE_KEY,
+  bucketSlug: localStorage.getItem(BUCKET_STORAGE) || "",
+  writeKey: localStorage.getItem(KEY_STORAGE) || "",
   dailyGoal: getStoredDailyGoal()
 };
 
@@ -21,6 +22,7 @@ const els = {
   calorieForm: document.querySelector("#calorieForm"),
   calorieInput: document.querySelector("#calorieInput"),
   keyForm: document.querySelector("#keyForm"),
+  bucketSlugInput: document.querySelector("#bucketSlugInput"),
   writeKeyInput: document.querySelector("#writeKeyInput"),
   clearKeyButton: document.querySelector("#clearKeyButton"),
   weekTotal: document.querySelector("#weekTotal"),
@@ -38,8 +40,9 @@ document.addEventListener("DOMContentLoaded", () => {
     window.lucide.createIcons();
   }
 
+  els.bucketSlugInput.value = state.bucketSlug;
   els.writeKeyInput.value = state.writeKey;
-  els.keyForm.hidden = Boolean(state.writeKey);
+  els.keyForm.hidden = hasBitStoreSetup();
   bindEvents();
   loadRecords();
 });
@@ -57,19 +60,31 @@ function bindEvents() {
 
   els.keyForm.addEventListener("submit", (event) => {
     event.preventDefault();
+    state.bucketSlug = normalizeBucketSlug(els.bucketSlugInput.value);
     state.writeKey = els.writeKeyInput.value.trim();
-    if (state.writeKey) {
+    if (state.bucketSlug && state.writeKey) {
+      localStorage.setItem(BUCKET_STORAGE, state.bucketSlug);
       localStorage.setItem(KEY_STORAGE, state.writeKey);
       els.keyForm.hidden = true;
-      setStatus("Write key saved on this device.");
+      setStatus("BitStore setup saved on this device.");
+      loadRecords();
+      return;
     }
+    setStatus("Enter both bucket slug and write key.", true);
   });
 
   els.clearKeyButton.addEventListener("click", () => {
+    state.bucketSlug = "";
     state.writeKey = "";
+    state.dailyGoal = 0;
+    state.records = [];
+    els.bucketSlugInput.value = "";
     els.writeKeyInput.value = "";
+    localStorage.removeItem(BUCKET_STORAGE);
     localStorage.removeItem(KEY_STORAGE);
-    setStatus("Write key removed from this device.");
+    localStorage.removeItem(GOAL_STORAGE);
+    render();
+    setStatus("BitStore setup removed from this device.");
   });
 
   els.calorieForm.addEventListener("submit", async (event) => {
@@ -99,12 +114,19 @@ function bindEvents() {
 }
 
 async function loadRecords() {
+  if (!state.bucketSlug) {
+    state.records = [];
+    render();
+    setStatus("Set up your BitStore bucket to sync data.");
+    return;
+  }
+
   setStatus("Syncing BitStore...");
   try {
     const data = await bitstoreFetch(`/records?take=200&t=${Date.now()}`);
     const bitstoreRecords = data.records || [];
     const hasRemoteGoal = syncDailyGoalFromRecords(bitstoreRecords);
-    if (!hasRemoteGoal && state.dailyGoal) {
+    if (!hasRemoteGoal && state.dailyGoal && hasBitStoreSetup()) {
       await saveDailyGoalRecord(state.dailyGoal);
     }
     state.records = normalizeRecords(bitstoreRecords);
@@ -117,7 +139,7 @@ async function loadRecords() {
 }
 
 async function addRecord(value) {
-  if (!requireWriteKey()) {
+  if (!requireBitStoreSetup()) {
     return;
   }
 
@@ -140,7 +162,7 @@ async function addRecord(value) {
 }
 
 async function deleteRecord(id) {
-  if (!id || !requireWriteKey()) {
+  if (!id || !requireBitStoreSetup()) {
     return;
   }
 
@@ -165,7 +187,7 @@ async function resetAllRecords() {
     return;
   }
 
-  if (!requireWriteKey()) {
+  if (!requireBitStoreSetup()) {
     return;
   }
 
@@ -211,7 +233,7 @@ async function setDailyGoal() {
     return;
   }
 
-  if (!requireWriteKey()) {
+  if (!requireBitStoreSetup()) {
     return;
   }
 
@@ -244,7 +266,11 @@ async function saveDailyGoalRecord(goal) {
 }
 
 async function bitstoreFetch(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
+  if (!state.bucketSlug) {
+    throw new Error("BitStore bucket is not set up.");
+  }
+
+  const response = await fetch(`${getApiBase()}${path}`, {
     cache: "no-store",
     credentials: "omit",
     mode: "cors",
@@ -281,14 +307,29 @@ async function getErrorMessage(response) {
   }
 }
 
-function requireWriteKey() {
-  if (state.writeKey) {
+function requireBitStoreSetup() {
+  if (hasBitStoreSetup()) {
     return true;
   }
+  window.alert(
+    "Set up your BitStore bucket slug and API write key first to store data.\n\nOpen the setup guide:\nhttps://bitstorehome.azurewebsites.net/HowTo"
+  );
   els.keyForm.hidden = false;
-  els.writeKeyInput.focus();
-  setStatus("Save the BitStore write key first.", true);
+  els.bucketSlugInput.focus();
+  setStatus("BitStore setup is required to store data.", true);
   return false;
+}
+
+function hasBitStoreSetup() {
+  return Boolean(state.bucketSlug && state.writeKey);
+}
+
+function getApiBase() {
+  return `${BITSTORE_BASE}/api/buckets/${encodeURIComponent(state.bucketSlug)}`;
+}
+
+function normalizeBucketSlug(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function normalizeCalories(raw) {
@@ -405,8 +446,9 @@ function renderChart(days, totals) {
     return values;
   }, []);
   const weeklyGoal = getWeeklyGoal();
-  const goalLine = days.map(() => weeklyGoal || null);
-  const yMax = Math.max(4000, weeklyGoal || 0, ...cumulativeTotals, ...totals);
+  const dailyGoalLine = days.map(() => state.dailyGoal || null);
+  const weeklyGoalLine = days.map(() => weeklyGoal || null);
+  const yMax = Math.max(4000, state.dailyGoal || 0, weeklyGoal || 0, ...cumulativeTotals, ...totals);
 
   if (!window.Chart) {
     return;
@@ -416,7 +458,8 @@ function renderChart(days, totals) {
     state.chart.data.labels = labels;
     state.chart.data.datasets[0].data = totals;
     state.chart.data.datasets[1].data = cumulativeTotals;
-    state.chart.data.datasets[2].data = goalLine;
+    state.chart.data.datasets[2].data = dailyGoalLine;
+    state.chart.data.datasets[3].data = weeklyGoalLine;
     state.chart.options.scales.y.max = yMax;
     state.chart.update();
     return;
@@ -453,8 +496,19 @@ function renderChart(days, totals) {
         },
         {
           type: "line",
-          label: "Goal",
-          data: goalLine,
+          label: "Daily goal",
+          data: dailyGoalLine,
+          borderColor: "#e53935",
+          borderWidth: 2,
+          borderDash: [3, 5],
+          pointRadius: 0,
+          tension: 0,
+          fill: false
+        },
+        {
+          type: "line",
+          label: "Weekly goal",
+          data: weeklyGoalLine,
           borderColor: "#e53935",
           borderWidth: 3,
           borderDash: [7, 5],

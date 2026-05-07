@@ -1,13 +1,13 @@
 # Fat Check
 
-Fat Check is a one-page calorie tracker for GitHub Pages. Records are stored in the BitStore bucket `fat-check`.
+Fat Check is a one-page calorie tracker for GitHub Pages. Records are stored in a BitStore bucket configured locally in the browser.
 
 ## BitStore
 
-The app reads from:
+The app reads from the bucket slug saved on the device:
 
 ```text
-https://bitstorehome.azurewebsites.net/api/buckets/fat-check/records
+https://bitstorehome.azurewebsites.net/api/buckets/{your-slug}/records
 ```
 
-The BitStore write key is embedded for this personal app so it can write from GitHub Pages without a backend.
+The BitStore bucket slug and write key are not committed to this repository. Use the key button in the app to save them locally on each device.

@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js" defer></script>
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
-    <script src="app.js?v=20260507-3" defer></script>
+    <script src="app.js?v=20260507-4" defer></script>
   </head>
   <body>
     <main class="app">
@@ -57,7 +57,7 @@
       <section class="entry-panel" aria-labelledby="addCaloriesTitle">
         <div class="panel-title-row">
           <h2 id="addCaloriesTitle">Add calories</h2>
-          <button class="icon-button ghost" id="settingsButton" type="button" aria-label="BitStore key" title="BitStore key">
+          <button class="icon-button ghost" id="settingsButton" type="button" aria-label="BitStore setup" title="BitStore setup">
             <i data-lucide="key-round"></i>
           </button>
         </div>
@@ -82,9 +82,14 @@
 
         <form id="keyForm" class="key-form" autocomplete="off" hidden>
           <label>
+            <span>Bucket slug</span>
+            <input id="bucketSlugInput" name="bucketSlug" type="text" placeholder="fat-check" autocapitalize="none" spellcheck="false">
+          </label>
+          <label>
             <span>Write key</span>
             <input id="writeKeyInput" name="writeKey" type="password" placeholder="X-BitStore-Key">
           </label>
+          <a class="setup-link" href="https://bitstorehome.azurewebsites.net/HowTo" target="_blank" rel="noopener noreferrer">BitStore setup guide</a>
           <div class="key-actions">
             <button class="secondary-button" type="submit">Save</button>
             <button class="text-button" id="clearKeyButton" type="button">Forget</button>
