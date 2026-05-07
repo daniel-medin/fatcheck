@@ -556,8 +556,14 @@ function renderChart(days, totals) {
   }, []);
   const weeklyGoal = getWeeklyGoal();
   const dailyGoalLine = days.map(() => state.dailyGoal || null);
+  const burnrateLine = days.map(() => state.burnrate || null);
   const weeklyGoalLine = days.map(() => weeklyGoal || null);
-  const yMax = Math.max(4000, state.dailyGoal || 0, weeklyGoal || 0, ...cumulativeTotals, ...totals);
+  const scaleConfig = getChartScaleConfig([...totals, ...cumulativeTotals, state.dailyGoal, state.burnrate, weeklyGoal]);
+  const scaledTotals = totals.map((value) => scaleChartValue(value, scaleConfig));
+  const scaledCumulativeTotals = cumulativeTotals.map((value) => scaleChartValue(value, scaleConfig));
+  const scaledDailyGoalLine = dailyGoalLine.map((value) => scaleChartValue(value, scaleConfig));
+  const scaledBurnrateLine = burnrateLine.map((value) => scaleChartValue(value, scaleConfig));
+  const scaledWeeklyGoalLine = weeklyGoalLine.map((value) => scaleChartValue(value, scaleConfig));
 
   if (!window.Chart) {
     return;
@@ -565,11 +571,22 @@ function renderChart(days, totals) {
 
   if (state.chart) {
     state.chart.data.labels = labels;
-    state.chart.data.datasets[0].data = totals;
-    state.chart.data.datasets[1].data = cumulativeTotals;
-    state.chart.data.datasets[2].data = dailyGoalLine;
-    state.chart.data.datasets[3].data = weeklyGoalLine;
-    state.chart.options.scales.y.max = yMax;
+    state.chart.data.datasets[0].data = scaledTotals;
+    state.chart.data.datasets[0].rawData = totals;
+    state.chart.data.datasets[1].data = scaledCumulativeTotals;
+    state.chart.data.datasets[1].rawData = cumulativeTotals;
+    state.chart.data.datasets[2].data = scaledDailyGoalLine;
+    state.chart.data.datasets[2].rawData = dailyGoalLine;
+    state.chart.data.datasets[3].data = scaledBurnrateLine;
+    state.chart.data.datasets[3].rawData = burnrateLine;
+    state.chart.data.datasets[4].data = scaledWeeklyGoalLine;
+    state.chart.data.datasets[4].rawData = weeklyGoalLine;
+    state.chart.options.scales.y.max = scaleConfig.displayMax;
+    state.chart.options.scales.y.ticks.callback = (value) => formatNumber(unscaleChartValue(value, scaleConfig));
+    state.chart.options.plugins.tooltip.callbacks.label = (item) => {
+      const rawValue = item.dataset.rawData?.[item.dataIndex] ?? unscaleChartValue(item.raw, scaleConfig);
+      return `${item.dataset.label}: ${formatNumber(rawValue)} kcal`;
+    };
     state.chart.update();
     return;
   }
@@ -582,7 +599,8 @@ function renderChart(days, totals) {
         {
           type: "bar",
           label: "Daily",
-          data: totals,
+          data: scaledTotals,
+          rawData: totals,
           borderRadius: 8,
           backgroundColor: "rgba(60, 109, 240, 0.62)",
           borderColor: "#3c6df0",
@@ -592,7 +610,8 @@ function renderChart(days, totals) {
         {
           type: "line",
           label: "Week total",
-          data: cumulativeTotals,
+          data: scaledCumulativeTotals,
+          rawData: cumulativeTotals,
           borderColor: "#1f9f62",
           backgroundColor: "rgba(31, 159, 98, 0.16)",
           borderWidth: 4,
@@ -606,7 +625,8 @@ function renderChart(days, totals) {
         {
           type: "line",
           label: "Daily goal",
-          data: dailyGoalLine,
+          data: scaledDailyGoalLine,
+          rawData: dailyGoalLine,
           borderColor: "#e53935",
           borderWidth: 2,
           borderDash: [3, 5],
@@ -616,8 +636,21 @@ function renderChart(days, totals) {
         },
         {
           type: "line",
+          label: "Burnrate",
+          data: scaledBurnrateLine,
+          rawData: burnrateLine,
+          borderColor: "#ffb33f",
+          borderWidth: 3,
+          borderDash: [2, 5],
+          pointRadius: 0,
+          tension: 0,
+          fill: false
+        },
+        {
+          type: "line",
           label: "Weekly goal",
-          data: weeklyGoalLine,
+          data: scaledWeeklyGoalLine,
+          rawData: weeklyGoalLine,
           borderColor: "#e53935",
           borderWidth: 3,
           borderDash: [7, 5],
@@ -634,7 +667,10 @@ function renderChart(days, totals) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: (item) => `${item.dataset.label}: ${formatNumber(item.raw)} kcal`
+            label: (item) => {
+              const rawValue = item.dataset.rawData?.[item.dataIndex] ?? unscaleChartValue(item.raw, scaleConfig);
+              return `${item.dataset.label}: ${formatNumber(rawValue)} kcal`;
+            }
           }
         }
       },
@@ -646,17 +682,63 @@ function renderChart(days, totals) {
         y: {
           beginAtZero: true,
           min: 0,
-          max: yMax,
+          max: scaleConfig.displayMax,
           grid: { color: "#e7e1d8" },
           ticks: {
             color: "#69707c",
             precision: 0,
-            callback: (value) => formatNumber(value)
+            callback: (value) => formatNumber(unscaleChartValue(value, scaleConfig))
           }
         }
       }
     }
   });
+}
+
+function getChartScaleConfig(values) {
+  const weeklyGoalTop = getWeeklyGoal() ? getWeeklyGoal() + 2000 : 0;
+  const dataMax = Math.max(0, ...values.filter((value) => Number.isFinite(value)));
+  let rawMax = Math.max(4000, weeklyGoalTop, dataMax);
+  const rawMid = state.burnrate || 0;
+
+  if (rawMid > 0 && rawMax <= rawMid) {
+    rawMax = rawMid * 2;
+  }
+
+  return {
+    displayMax: rawMax,
+    displayMid: rawMax / 2,
+    rawMax,
+    rawMid
+  };
+}
+
+function scaleChartValue(value, config) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return null;
+  }
+
+  if (!config.rawMid || config.rawMid >= config.rawMax) {
+    return value;
+  }
+
+  if (value <= config.rawMid) {
+    return (value / config.rawMid) * config.displayMid;
+  }
+
+  return config.displayMid + ((value - config.rawMid) / (config.rawMax - config.rawMid)) * config.displayMid;
+}
+
+function unscaleChartValue(value, config) {
+  if (!config.rawMid || config.rawMid >= config.rawMax) {
+    return Math.round(value);
+  }
+
+  if (value <= config.displayMid) {
+    return Math.round((value / config.displayMid) * config.rawMid);
+  }
+
+  return Math.round(config.rawMid + ((value - config.displayMid) / config.displayMid) * (config.rawMax - config.rawMid));
 }
 
 function renderRecent() {
