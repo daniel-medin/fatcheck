@@ -334,6 +334,12 @@ function renderGoalDelta(weekTotal) {
 
 function renderChart(days, totals) {
   const labels = days.map((date) => date.toLocaleDateString(undefined, { weekday: "short" }));
+  const cumulativeTotals = totals.reduce((values, total, index) => {
+    values.push((values[index - 1] || 0) + total);
+    return values;
+  }, []);
+  const goalLine = days.map(() => state.weeklyGoal || null);
+  const yMax = Math.max(4000, state.weeklyGoal || 0);
 
   if (!window.Chart) {
     return;
@@ -341,7 +347,9 @@ function renderChart(days, totals) {
 
   if (state.chart) {
     state.chart.data.labels = labels;
-    state.chart.data.datasets[0].data = totals;
+    state.chart.data.datasets[0].data = cumulativeTotals;
+    state.chart.data.datasets[1].data = goalLine;
+    state.chart.options.scales.y.max = yMax;
     state.chart.update();
     return;
   }
@@ -352,10 +360,29 @@ function renderChart(days, totals) {
       labels,
       datasets: [
         {
-          data: totals,
-          borderRadius: 8,
-          backgroundColor: ["#3c6df0", "#1f9f62", "#ffb33f", "#f15a3b", "#3c6df0", "#1f9f62", "#ffb33f"],
-          maxBarThickness: 34
+          type: "line",
+          label: "Week total",
+          data: cumulativeTotals,
+          borderColor: "#1f9f62",
+          backgroundColor: "rgba(31, 159, 98, 0.16)",
+          borderWidth: 4,
+          pointBackgroundColor: "#1f9f62",
+          pointBorderColor: "#ffffff",
+          pointBorderWidth: 2,
+          pointRadius: 4,
+          tension: 0.32,
+          fill: true
+        },
+        {
+          type: "line",
+          label: "Goal",
+          data: goalLine,
+          borderColor: "#e53935",
+          borderWidth: 3,
+          borderDash: [7, 5],
+          pointRadius: 0,
+          tension: 0,
+          fill: false
         }
       ]
     },
@@ -366,7 +393,7 @@ function renderChart(days, totals) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: (item) => `${formatNumber(item.raw)} kcal`
+            label: (item) => `${item.dataset.label}: ${formatNumber(item.raw)} kcal`
           }
         }
       },
@@ -377,6 +404,8 @@ function renderChart(days, totals) {
         },
         y: {
           beginAtZero: true,
+          min: 0,
+          max: yMax,
           grid: { color: "#e7e1d8" },
           ticks: {
             color: "#69707c",
