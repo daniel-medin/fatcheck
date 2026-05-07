@@ -38,7 +38,23 @@ Records are fetched from:
 https://bitstorehome.azurewebsites.net/api/buckets/{slug}/records
 ```
 
-Normal calorie records are plain numeric values. App settings use prefixed records:
+Calories are stored as one daily total record per day:
+
+```text
+<day-code>:<kcal>
+```
+
+Example:
+
+```text
+g4c:1200
+```
+
+The app should update today's existing daily record when adding calories. Do not create one BitStore record per add.
+
+Legacy plain numeric calorie values may still exist. Keep read support for them, but prefer daily records for new writes.
+
+App settings use prefixed records:
 
 - `g<number>` for daily intake goal.
 - `b<number>` for daily burnrate.

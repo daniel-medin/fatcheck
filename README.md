@@ -42,12 +42,13 @@ https://bitstorehome.azurewebsites.net/HowTo
 
 ## Data Format
 
-Normal calorie records are stored as numbers:
+Daily calorie totals are stored as one value per day:
 
 ```text
-450
-1200
+g4c:1200
 ```
+
+The part before `:` is a compact day code. The part after `:` is that day's calorie total. Adding more calories on the same day updates the existing daily record instead of creating another calorie record.
 
 App settings are stored in the same bucket with short prefixes:
 

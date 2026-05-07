@@ -8,6 +8,7 @@ const GOAL_PREFIX = "g";
 const BURNRATE_PREFIX = "b";
 const KCAL_PER_KG = 3500;
 const MAX_VALUE_LENGTH = 8;
+const MAX_DAILY_CALORIES = 9999;
 
 const state = {
   records: [],
@@ -159,19 +160,26 @@ async function addRecord(value) {
     return;
   }
 
+  const amount = Number(value);
+  const today = new Date();
+  const todayRecord = findDailyRecordForDate(today);
+  const currentTotal = todayRecord ? todayRecord.value : totalForDay(today, getEffectiveCalorieRecords(state.records));
+  const nextTotal = currentTotal + amount;
+  if (nextTotal > MAX_DAILY_CALORIES) {
+    setStatus(`Daily total cannot exceed ${formatNumber(MAX_DAILY_CALORIES)} kcal.`, true);
+    return;
+  }
+
   setStatus("Saving...");
   try {
-    await bitstoreFetch("/records", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-BitStore-Key": state.writeKey
-      },
-      body: JSON.stringify({ value })
-    });
+    if (todayRecord?.id) {
+      await updateCalorieRecord(todayRecord.id, formatDailyValue(today, nextTotal));
+    } else {
+      await createCalorieRecord(formatDailyValue(today, nextTotal));
+    }
     els.calorieInput.value = "";
     await loadRecords();
-    setStatus(`Added ${formatNumber(value)} kcal.`);
+    setStatus(`Added ${formatNumber(value)} kcal. Today: ${formatNumber(nextTotal)} kcal.`);
   } catch (error) {
     setStatus(error.message, true);
   }
@@ -182,14 +190,31 @@ async function deleteRecord(id) {
     return;
   }
 
+  const targetRecord = state.records.find((record) => String(record.id) === String(id));
+  const recordsToDelete =
+    targetRecord?.kind === "daily"
+      ? state.records.filter((record) => isSameDay(record.createdAt, targetRecord.createdAt))
+      : [targetRecord].filter(Boolean);
+
+  if (!recordsToDelete.length) {
+    setStatus("Entry not found.", true);
+    return;
+  }
+
   setStatus("Deleting...");
   try {
-    await bitstoreFetch(`/records/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-      headers: {
-        "X-BitStore-Key": state.writeKey
-      }
-    });
+    await Promise.all(
+      recordsToDelete
+        .filter((record) => record.id)
+        .map((record) =>
+          bitstoreFetch(`/records/${encodeURIComponent(record.id)}`, {
+            method: "DELETE",
+            headers: {
+              "X-BitStore-Key": state.writeKey
+            }
+          })
+        )
+    );
     await loadRecords();
     setStatus("Entry deleted.");
   } catch (error) {
@@ -329,6 +354,28 @@ async function saveBurnrateRecord(burnrate) {
   });
 }
 
+async function createCalorieRecord(value) {
+  return bitstoreFetch("/records", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-BitStore-Key": state.writeKey
+    },
+    body: JSON.stringify({ value })
+  });
+}
+
+async function updateCalorieRecord(id, value) {
+  return bitstoreFetch(`/records/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-BitStore-Key": state.writeKey
+    },
+    body: JSON.stringify({ value })
+  });
+}
+
 async function bitstoreFetch(path, options = {}) {
   if (!state.bucketSlug) {
     throw new Error("BitStore bucket is not set up.");
@@ -422,11 +469,25 @@ function normalizeCalories(raw) {
 function normalizeRecords(records) {
   return records
     .map((record) => {
+      const dailyRecord = parseDailyValue(record.value);
+      if (dailyRecord) {
+        return {
+          ...record,
+          id: record.id ?? record.recordId ?? record.recordID,
+          kind: "daily",
+          dayKey: dailyRecord.dayKey,
+          value: dailyRecord.calories,
+          createdAt: dateFromDayKey(dailyRecord.dayKey),
+          updatedAt: getRecordDate(record)
+        };
+      }
+
       const value = Math.round(Number(record.value));
       const createdAt = getRecordDate(record);
       return {
         ...record,
         id: record.id ?? record.recordId ?? record.recordID,
+        kind: "legacy",
         value,
         createdAt
       };
@@ -502,15 +563,16 @@ function getRecordDate(record) {
 
 function render() {
   const week = getCurrentWeek();
-  const dailyTotals = week.days.map((day) => totalForDay(day, state.records));
+  const calorieRecords = getEffectiveCalorieRecords(state.records);
+  const dailyTotals = week.days.map((day) => totalForDay(day, calorieRecords));
   const weekTotal = dailyTotals.reduce((sum, value) => sum + value, 0);
-  const todayTotal = totalForDay(new Date(), state.records);
+  const todayTotal = totalForDay(new Date(), calorieRecords);
 
   els.weekTotal.textContent = formatNumber(weekTotal);
   els.todayTotal.textContent = formatNumber(todayTotal);
   renderGoalDelta(weekTotal);
   els.weekRange.textContent = `Mon-Sun, ${formatShortDate(week.start)} - ${formatShortDate(week.end)}`;
-  els.recordCount.textContent = `${state.records.length} ${state.records.length === 1 ? "record" : "records"}`;
+  els.recordCount.textContent = `${calorieRecords.length} ${calorieRecords.length === 1 ? "record" : "records"}`;
 
   renderChart(week.days, dailyTotals);
   renderRecent();
@@ -742,7 +804,7 @@ function unscaleChartValue(value, config) {
 }
 
 function renderRecent() {
-  const recent = state.records.slice(0, 12);
+  const recent = getEffectiveCalorieRecords(state.records).slice(0, 12);
   els.recentList.innerHTML = "";
 
   if (!recent.length) {
@@ -763,13 +825,16 @@ function renderRecent() {
     const day = document.createElement("strong");
     day.textContent = relativeDay(record.createdAt);
     const time = document.createElement("span");
-    time.textContent = record.createdAt.toLocaleString(undefined, {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
+    time.textContent =
+      record.kind === "daily"
+        ? `${record.createdAt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} daily total`
+        : record.createdAt.toLocaleString(undefined, {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+          });
     main.append(day, time);
 
     const value = document.createElement("span");
@@ -819,6 +884,62 @@ function getWeeklyGoal() {
 
 function getWeeklyBurnrate() {
   return state.burnrate ? state.burnrate * 7 : 0;
+}
+
+function findDailyRecordForDate(date) {
+  const dayKey = getDayKey(date);
+  return state.records
+    .filter((record) => record.kind === "daily" && record.dayKey === dayKey)
+    .sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt))[0];
+}
+
+function getEffectiveCalorieRecords(records) {
+  const dailyByKey = new Map();
+  records
+    .filter((record) => record.kind === "daily")
+    .forEach((record) => {
+      const existing = dailyByKey.get(record.dayKey);
+      if (!existing || (record.updatedAt || record.createdAt) > (existing.updatedAt || existing.createdAt)) {
+        dailyByKey.set(record.dayKey, record);
+      }
+    });
+
+  const effective = [...dailyByKey.values()];
+  records
+    .filter((record) => record.kind !== "daily")
+    .forEach((record) => {
+      if (!dailyByKey.has(getDayKey(record.createdAt))) {
+        effective.push(record);
+      }
+    });
+
+  return effective.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+function formatDailyValue(date, calories) {
+  return `${getDayKey(date)}:${calories}`;
+}
+
+function parseDailyValue(value) {
+  const match = String(value || "").match(/^([0-9a-z]{3}):(\d{1,4})$/i);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    dayKey: match[1].toLowerCase(),
+    calories: Number(match[2])
+  };
+}
+
+function getDayKey(date) {
+  return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000).toString(36);
+}
+
+function dateFromDayKey(dayKey) {
+  const dayNumber = parseInt(dayKey, 36);
+  const date = new Date(dayNumber * 86400000);
+  return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
 
 function getStoredDailyGoal() {
