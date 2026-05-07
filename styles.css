@@ -45,8 +45,7 @@ button {
 }
 
 .app {
-  width: 100%;
-  max-width: 460px;
+  width: min(100vw, 460px);
   min-height: 100vh;
   margin: 0 auto;
   padding: max(18px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
@@ -472,5 +471,53 @@ h2 {
 
   .quick-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 430px) {
+  .app {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .topbar {
+    gap: 10px;
+  }
+
+  .brand-lockup {
+    gap: 9px;
+  }
+
+  .logo {
+    width: 50px;
+    height: 50px;
+  }
+
+  h1 {
+    font-size: 1.65rem;
+  }
+
+  .top-actions {
+    gap: 6px;
+  }
+
+  .icon-button {
+    width: 40px;
+    height: 40px;
+    flex-basis: 40px;
+  }
+
+  .summary-band {
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .today-pill {
+    min-width: 80px;
+    padding: 12px 9px;
+  }
+
+  .today-pill strong {
+    font-size: 1.35rem;
   }
 }

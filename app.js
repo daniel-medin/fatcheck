@@ -2,8 +2,11 @@ const BITSTORE_BASE = "https://bitstorehome.azurewebsites.net";
 const BUCKET_STORAGE = "fat-check.bucket-slug";
 const KEY_STORAGE = "fat-check.write-key";
 const GOAL_STORAGE = "fat-check.daily-goal";
+const BURNRATE_STORAGE = "fat-check.burnrate";
 const LEGACY_GOAL_STORAGE = "fat-check.weekly-goal";
 const GOAL_PREFIX = "g";
+const BURNRATE_PREFIX = "b";
+const KCAL_PER_KG = 3500;
 const MAX_VALUE_LENGTH = 8;
 
 const state = {
@@ -11,12 +14,14 @@ const state = {
   chart: null,
   bucketSlug: localStorage.getItem(BUCKET_STORAGE) || "",
   writeKey: localStorage.getItem(KEY_STORAGE) || "",
-  dailyGoal: getStoredDailyGoal()
+  dailyGoal: getStoredDailyGoal(),
+  burnrate: getStoredBurnrate()
 };
 
 const els = {
   refreshButton: document.querySelector("#refreshButton"),
   goalButton: document.querySelector("#goalButton"),
+  burnrateButton: document.querySelector("#burnrateButton"),
   settingsButton: document.querySelector("#settingsButton"),
   resetButton: document.querySelector("#resetButton"),
   calorieForm: document.querySelector("#calorieForm"),
@@ -50,6 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function bindEvents() {
   els.refreshButton.addEventListener("click", loadRecords);
   els.goalButton.addEventListener("click", setDailyGoal);
+  els.burnrateButton.addEventListener("click", setBurnrate);
   els.resetButton.addEventListener("click", resetAllRecords);
   els.settingsButton.addEventListener("click", () => {
     els.keyForm.hidden = !els.keyForm.hidden;
@@ -77,12 +83,14 @@ function bindEvents() {
     state.bucketSlug = "";
     state.writeKey = "";
     state.dailyGoal = 0;
+    state.burnrate = 0;
     state.records = [];
     els.bucketSlugInput.value = "";
     els.writeKeyInput.value = "";
     localStorage.removeItem(BUCKET_STORAGE);
     localStorage.removeItem(KEY_STORAGE);
     localStorage.removeItem(GOAL_STORAGE);
+    localStorage.removeItem(BURNRATE_STORAGE);
     render();
     setStatus("BitStore setup removed from this device.");
   });
@@ -126,8 +134,12 @@ async function loadRecords() {
     const data = await bitstoreFetch(`/records?take=200&t=${Date.now()}`);
     const bitstoreRecords = data.records || [];
     const hasRemoteGoal = syncDailyGoalFromRecords(bitstoreRecords);
+    const hasRemoteBurnrate = syncBurnrateFromRecords(bitstoreRecords);
     if (!hasRemoteGoal && state.dailyGoal && hasBitStoreSetup()) {
       await saveDailyGoalRecord(state.dailyGoal);
+    }
+    if (!hasRemoteBurnrate && state.burnrate && hasBitStoreSetup()) {
+      await saveBurnrateRecord(state.burnrate);
     }
     state.records = normalizeRecords(bitstoreRecords);
     render();
@@ -254,6 +266,43 @@ async function setDailyGoal() {
   }
 }
 
+async function setBurnrate() {
+  const currentBurnrate = state.burnrate ? String(state.burnrate) : "";
+  const typed = window.prompt("Burnrate kcal per day?", currentBurnrate);
+  if (typed === null) {
+    setStatus("Burnrate unchanged.");
+    return;
+  }
+
+  const burnrate = Math.round(Number(typed));
+  if (!Number.isFinite(burnrate) || burnrate < 0 || String(burnrate).length + BURNRATE_PREFIX.length > MAX_VALUE_LENGTH) {
+    setStatus("Enter a burnrate from 0 to 9,999,999 kcal.", true);
+    return;
+  }
+
+  if (!requireBitStoreSetup()) {
+    return;
+  }
+
+  setStatus("Saving burnrate...");
+  try {
+    await saveBurnrateRecord(burnrate);
+    state.burnrate = burnrate;
+    if (burnrate > 0) {
+      localStorage.setItem(BURNRATE_STORAGE, String(burnrate));
+      const balance = state.dailyGoal ? state.dailyGoal - state.burnrate : 0;
+      const balanceText = state.dailyGoal ? ` (${formatSignedNumber(balance)} kcal/day at current intake)` : "";
+      setStatus(`Burnrate set to ${formatNumber(burnrate)} kcal/day${balanceText}.`);
+    } else {
+      localStorage.removeItem(BURNRATE_STORAGE);
+      setStatus("Burnrate cleared.");
+    }
+    render();
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
 async function saveDailyGoalRecord(goal) {
   return bitstoreFetch("/records", {
     method: "POST",
@@ -262,6 +311,17 @@ async function saveDailyGoalRecord(goal) {
       "X-BitStore-Key": state.writeKey
     },
     body: JSON.stringify({ value: `${GOAL_PREFIX}${goal}` })
+  });
+}
+
+async function saveBurnrateRecord(burnrate) {
+  return bitstoreFetch("/records", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-BitStore-Key": state.writeKey
+    },
+    body: JSON.stringify({ value: `${BURNRATE_PREFIX}${burnrate}` })
   });
 }
 
@@ -379,8 +439,34 @@ function syncDailyGoalFromRecords(records) {
   return true;
 }
 
+function syncBurnrateFromRecords(records) {
+  const burnrateRecords = records
+    .map((record) => ({
+      value: parsePrefixedValue(record.value, BURNRATE_PREFIX),
+      createdAt: getRecordDate(record)
+    }))
+    .filter((record) => record.value !== null && record.createdAt)
+    .sort((a, b) => b.createdAt - a.createdAt);
+
+  if (!burnrateRecords.length) {
+    return false;
+  }
+
+  state.burnrate = burnrateRecords[0].value;
+  if (state.burnrate > 0) {
+    localStorage.setItem(BURNRATE_STORAGE, String(state.burnrate));
+  } else {
+    localStorage.removeItem(BURNRATE_STORAGE);
+  }
+  return true;
+}
+
 function parseGoalValue(value) {
-  const match = String(value || "").match(/^g(\d+)$/i);
+  return parsePrefixedValue(value, GOAL_PREFIX);
+}
+
+function parsePrefixedValue(value, prefix) {
+  const match = String(value || "").match(new RegExp(`^${prefix}(\\d+)$`, "i"));
   return match ? Number(match[1]) : null;
 }
 
@@ -422,21 +508,30 @@ function renderGoalDelta(weekTotal) {
   }
 
   const difference = weekTotal - weeklyGoal;
-  const goalSuffix = `(${formatNumber(state.dailyGoal)}/day, ${formatNumber(weeklyGoal)}/week)`;
+  const weightLossText = getWeightLossText();
   if (difference === 0) {
-    els.goalDelta.textContent = `0 kcal left this week ${goalSuffix}`;
+    els.goalDelta.textContent = `0 kcal left this week · ${weightLossText}`;
     els.goalDelta.classList.add("is-under");
     return;
   }
 
   if (difference < 0) {
-    els.goalDelta.textContent = `${formatNumber(Math.abs(difference))} kcal left this week ${goalSuffix}`;
+    els.goalDelta.textContent = `${formatNumber(Math.abs(difference))} kcal left this week · ${weightLossText}`;
     els.goalDelta.classList.add("is-under");
     return;
   }
 
-  els.goalDelta.textContent = `${formatNumber(difference)} kcal over this week ${goalSuffix}`;
+  els.goalDelta.textContent = `${formatNumber(difference)} kcal over this week · ${weightLossText}`;
   els.goalDelta.classList.add("is-over");
+}
+
+function getWeightLossText() {
+  if (!state.burnrate) {
+    return "set burnrate";
+  }
+
+  const weeklyWeightLoss = ((state.burnrate - state.dailyGoal) * 7) / KCAL_PER_KG;
+  return `weightloss this week ${weeklyWeightLoss.toFixed(1)} Kg`;
 }
 
 function renderChart(days, totals) {
@@ -643,6 +738,11 @@ function getStoredDailyGoal() {
   return 0;
 }
 
+function getStoredBurnrate() {
+  const storedBurnrate = Number(localStorage.getItem(BURNRATE_STORAGE));
+  return Number.isFinite(storedBurnrate) && storedBurnrate > 0 ? storedBurnrate : 0;
+}
+
 function totalForDay(day, records) {
   return records
     .filter((record) => isSameDay(record.createdAt, day))
@@ -680,6 +780,16 @@ function formatShortDate(date) {
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString();
+}
+
+function formatSignedNumber(value) {
+  if (value > 0) {
+    return `+${formatNumber(value)}`;
+  }
+  if (value < 0) {
+    return `-${formatNumber(Math.abs(value))}`;
+  }
+  return "0";
 }
 
 function setStatus(message, isError = false) {
