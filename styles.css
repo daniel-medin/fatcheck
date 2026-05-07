@@ -60,7 +60,8 @@ button {
 .key-actions,
 .brand-lockup,
 .summary-band,
-.today-pill {
+.today-pill,
+.history-actions {
   display: flex;
   align-items: center;
 }
@@ -138,7 +139,8 @@ h2 {
 }
 
 .icon-button svg,
-.primary-button svg {
+.primary-button svg,
+.danger-icon-button svg {
   width: 19px;
   height: 19px;
   stroke-width: 2.4;
@@ -203,6 +205,10 @@ h2 {
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.history-actions {
+  gap: 8px;
 }
 
 .chart-wrap {
@@ -367,6 +373,17 @@ h2 {
   border-radius: 999px;
   color: var(--muted);
   background: transparent;
+}
+
+.danger-icon-button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: #b42318;
+  background: #fff0ed;
 }
 
 .delete-button svg {

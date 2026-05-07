@@ -12,6 +12,7 @@ const state = {
 const els = {
   refreshButton: document.querySelector("#refreshButton"),
   settingsButton: document.querySelector("#settingsButton"),
+  resetButton: document.querySelector("#resetButton"),
   calorieForm: document.querySelector("#calorieForm"),
   calorieInput: document.querySelector("#calorieInput"),
   keyForm: document.querySelector("#keyForm"),
@@ -39,6 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function bindEvents() {
   els.refreshButton.addEventListener("click", loadRecords);
+  els.resetButton.addEventListener("click", resetAllRecords);
   els.settingsButton.addEventListener("click", () => {
     els.keyForm.hidden = !els.keyForm.hidden;
     if (!els.keyForm.hidden) {
@@ -140,6 +142,38 @@ async function deleteRecord(id) {
     });
     await loadRecords();
     setStatus("Entry deleted.");
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+async function resetAllRecords() {
+  if (!state.records.length) {
+    setStatus("Nothing to reset.");
+    return;
+  }
+
+  if (!requireWriteKey()) {
+    return;
+  }
+
+  const typed = window.prompt('Type "reset" to delete every calorie entry.');
+  if (typed !== "reset") {
+    setStatus("Reset cancelled.");
+    return;
+  }
+
+  setStatus("Resetting...");
+  try {
+    await bitstoreFetch("/records", {
+      method: "DELETE",
+      headers: {
+        "X-BitStore-Key": state.writeKey
+      }
+    });
+    state.records = [];
+    render();
+    setStatus("All entries reset.");
   } catch (error) {
     setStatus(error.message, true);
   }

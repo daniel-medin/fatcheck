@@ -89,7 +89,12 @@
       <section class="history-panel" aria-labelledby="recentTitle">
         <div class="panel-title-row">
           <h2 id="recentTitle">Recent</h2>
-          <span id="recordCount">0 records</span>
+          <div class="history-actions">
+            <span id="recordCount">0 records</span>
+            <button class="danger-icon-button" id="resetButton" type="button" aria-label="Reset all" title="Reset all">
+              <i data-lucide="rotate-ccw"></i>
+            </button>
+          </div>
         </div>
         <ol id="recentList" class="recent-list"></ol>
       </section>
