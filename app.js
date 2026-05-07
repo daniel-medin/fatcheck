@@ -3,6 +3,7 @@ const KEY_STORAGE = "fat-check.write-key";
 const GOAL_STORAGE = "fat-check.daily-goal";
 const LEGACY_GOAL_STORAGE = "fat-check.weekly-goal";
 const DEFAULT_WRITE_KEY = "6864b11a2a3539fd1f7e4b69c29d9953d638c94b9b2f1cd9";
+const GOAL_PREFIX = "g";
 const MAX_VALUE_LENGTH = 8;
 
 const state = {
@@ -101,7 +102,12 @@ async function loadRecords() {
   setStatus("Syncing BitStore...");
   try {
     const data = await bitstoreFetch(`/records?take=200&t=${Date.now()}`);
-    state.records = normalizeRecords(data.records || []);
+    const bitstoreRecords = data.records || [];
+    const hasRemoteGoal = syncDailyGoalFromRecords(bitstoreRecords);
+    if (!hasRemoteGoal && state.dailyGoal) {
+      await saveDailyGoalRecord(state.dailyGoal);
+    }
+    state.records = normalizeRecords(bitstoreRecords);
     render();
     setStatus(`Synced ${state.records.length} ${state.records.length === 1 ? "record" : "records"}.`);
   } catch (error) {
@@ -171,12 +177,18 @@ async function resetAllRecords() {
 
   setStatus("Resetting...");
   try {
-    await bitstoreFetch("/records", {
-      method: "DELETE",
-      headers: {
-        "X-BitStore-Key": state.writeKey
-      }
-    });
+    await Promise.all(
+      state.records
+        .filter((record) => record.id)
+        .map((record) =>
+          bitstoreFetch(`/records/${encodeURIComponent(record.id)}`, {
+            method: "DELETE",
+            headers: {
+              "X-BitStore-Key": state.writeKey
+            }
+          })
+        )
+    );
     state.records = [];
     render();
     setStatus("All entries reset.");
@@ -185,7 +197,7 @@ async function resetAllRecords() {
   }
 }
 
-function setDailyGoal() {
+async function setDailyGoal() {
   const currentGoal = state.dailyGoal ? String(state.dailyGoal) : "";
   const typed = window.prompt("Daily calorie goal?", currentGoal);
   if (typed === null) {
@@ -194,18 +206,41 @@ function setDailyGoal() {
   }
 
   const goal = Math.round(Number(typed));
-  if (!Number.isFinite(goal) || goal <= 0) {
-    state.dailyGoal = 0;
-    localStorage.removeItem(GOAL_STORAGE);
-    render();
-    setStatus("Daily goal cleared.");
+  if (!Number.isFinite(goal) || goal < 0 || String(goal).length + GOAL_PREFIX.length > MAX_VALUE_LENGTH) {
+    setStatus("Enter a daily goal from 0 to 9,999,999 kcal.", true);
     return;
   }
 
-  state.dailyGoal = goal;
-  localStorage.setItem(GOAL_STORAGE, String(goal));
-  render();
-  setStatus(`Daily goal set to ${formatNumber(goal)} kcal/day (${formatNumber(getWeeklyGoal())} kcal/week).`);
+  if (!requireWriteKey()) {
+    return;
+  }
+
+  setStatus("Saving daily goal...");
+  try {
+    await saveDailyGoalRecord(goal);
+    state.dailyGoal = goal;
+    if (goal > 0) {
+      localStorage.setItem(GOAL_STORAGE, String(goal));
+      setStatus(`Daily goal set to ${formatNumber(goal)} kcal/day (${formatNumber(getWeeklyGoal())} kcal/week).`);
+    } else {
+      localStorage.removeItem(GOAL_STORAGE);
+      setStatus("Daily goal cleared.");
+    }
+    render();
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+async function saveDailyGoalRecord(goal) {
+  return bitstoreFetch("/records", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-BitStore-Key": state.writeKey
+    },
+    body: JSON.stringify({ value: `${GOAL_PREFIX}${goal}` })
+  });
 }
 
 async function bitstoreFetch(path, options = {}) {
@@ -279,6 +314,33 @@ function normalizeRecords(records) {
     })
     .filter((record) => Number.isFinite(record.value) && record.value > 0 && record.createdAt)
     .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+function syncDailyGoalFromRecords(records) {
+  const goalRecords = records
+    .map((record) => ({
+      value: parseGoalValue(record.value),
+      createdAt: getRecordDate(record)
+    }))
+    .filter((record) => record.value !== null && record.createdAt)
+    .sort((a, b) => b.createdAt - a.createdAt);
+
+  if (!goalRecords.length) {
+    return false;
+  }
+
+  state.dailyGoal = goalRecords[0].value;
+  if (state.dailyGoal > 0) {
+    localStorage.setItem(GOAL_STORAGE, String(state.dailyGoal));
+  } else {
+    localStorage.removeItem(GOAL_STORAGE);
+  }
+  return true;
+}
+
+function parseGoalValue(value) {
+  const match = String(value || "").match(/^g(\d+)$/i);
+  return match ? Number(match[1]) : null;
 }
 
 function getRecordDate(record) {
