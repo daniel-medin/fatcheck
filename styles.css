@@ -249,7 +249,7 @@ h2 {
 }
 
 .calorie-form {
-  align-items: end;
+  align-items: start;
   gap: 10px;
   margin-top: 14px;
 }
@@ -313,6 +313,7 @@ h2 {
   gap: 8px;
   min-width: 98px;
   min-height: 54px;
+  margin-top: 25px;
   padding: 0 16px;
   color: #fff;
   background: var(--green);
@@ -507,6 +508,7 @@ h2 {
   }
 
   .primary-button {
+    margin-top: 0;
     width: 100%;
   }
 
