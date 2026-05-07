@@ -266,15 +266,9 @@ h2 {
   text-align: right;
 }
 
-.chart-panel .panel-title-row {
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .chart-panel .panel-title-row span {
-  flex-basis: 100%;
-  text-align: left;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .history-actions {
