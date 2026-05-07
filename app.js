@@ -796,6 +796,7 @@ function renderChart(days, totals) {
       plugins: {
         legend: { display: false },
         tooltip: {
+          filter: (item) => item.datasetIndex === 0,
           callbacks: {
             label: (item) => {
               const rawValue = item.dataset.rawData?.[item.dataIndex] ?? unscaleChartValue(item.raw, scaleConfig);
