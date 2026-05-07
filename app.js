@@ -808,7 +808,8 @@ function renderChart(days, totals) {
         const element = elements.find((item) => item.datasetIndex === 0) || elements[0];
         const day = state.chartDays[element?.index];
         if (day) {
-          editCaloriesForDate(day);
+          clearChartInteraction();
+          editCaloriesForDate(day).finally(clearChartInteraction);
         }
       },
       scales: {
@@ -830,6 +831,16 @@ function renderChart(days, totals) {
       }
     }
   });
+}
+
+function clearChartInteraction() {
+  if (!state.chart) {
+    return;
+  }
+
+  state.chart.setActiveElements([]);
+  state.chart.tooltip?.setActiveElements([], { x: 0, y: 0 });
+  state.chart.update("none");
 }
 
 function getChartScaleConfig(values) {
