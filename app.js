@@ -100,10 +100,10 @@ function bindEvents() {
 async function loadRecords() {
   setStatus("Syncing BitStore...");
   try {
-    const data = await bitstoreFetch("/records?take=200");
+    const data = await bitstoreFetch(`/records?take=200&t=${Date.now()}`);
     state.records = normalizeRecords(data.records || []);
     render();
-    setStatus("Synced.");
+    setStatus(`Synced ${state.records.length} ${state.records.length === 1 ? "record" : "records"}.`);
   } catch (error) {
     render();
     setStatus(error.message, true);
@@ -210,6 +210,7 @@ function setWeeklyGoal() {
 
 async function bitstoreFetch(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
+    cache: "no-store",
     credentials: "omit",
     mode: "cors",
     ...options
