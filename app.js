@@ -300,7 +300,7 @@ function render() {
   els.weekTotal.textContent = formatNumber(weekTotal);
   els.todayTotal.textContent = formatNumber(todayTotal);
   renderGoalDelta(weekTotal);
-  els.weekRange.textContent = `${formatShortDate(week.start)} - ${formatShortDate(week.end)}`;
+  els.weekRange.textContent = `Mon-Sun, ${formatShortDate(week.start)} - ${formatShortDate(week.end)}`;
   els.recordCount.textContent = `${state.records.length} ${state.records.length === 1 ? "record" : "records"}`;
 
   renderChart(week.days, dailyTotals);
@@ -317,18 +317,18 @@ function renderGoalDelta(weekTotal) {
 
   const difference = weekTotal - state.weeklyGoal;
   if (difference === 0) {
-    els.goalDelta.textContent = "0 kcal on goal";
+    els.goalDelta.textContent = "0 kcal left this week";
     els.goalDelta.classList.add("is-under");
     return;
   }
 
   if (difference < 0) {
-    els.goalDelta.textContent = `-${formatNumber(Math.abs(difference))} kcal under goal`;
+    els.goalDelta.textContent = `${formatNumber(Math.abs(difference))} kcal left this week`;
     els.goalDelta.classList.add("is-under");
     return;
   }
 
-  els.goalDelta.textContent = `+${formatNumber(difference)} kcal over goal`;
+  els.goalDelta.textContent = `${formatNumber(difference)} kcal over this week`;
   els.goalDelta.classList.add("is-over");
 }
 
