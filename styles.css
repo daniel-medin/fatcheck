@@ -249,6 +249,7 @@ h2 {
 }
 
 .calorie-form {
+  align-items: end;
   gap: 10px;
   margin-top: 14px;
 }
