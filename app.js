@@ -13,6 +13,8 @@ const MAX_DAILY_CALORIES = 9999;
 const state = {
   records: [],
   chart: null,
+  chartDays: [],
+  weekOffset: 0,
   bucketSlug: localStorage.getItem(BUCKET_STORAGE) || "",
   writeKey: localStorage.getItem(KEY_STORAGE) || "",
   dailyGoal: getStoredDailyGoal(),
@@ -21,6 +23,8 @@ const state = {
 
 const els = {
   refreshButton: document.querySelector("#refreshButton"),
+  previousWeekButton: document.querySelector("#previousWeekButton"),
+  nextWeekButton: document.querySelector("#nextWeekButton"),
   goalButton: document.querySelector("#goalButton"),
   burnrateButton: document.querySelector("#burnrateButton"),
   settingsButton: document.querySelector("#settingsButton"),
@@ -57,6 +61,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function bindEvents() {
   els.refreshButton.addEventListener("click", loadRecords);
+  els.previousWeekButton.addEventListener("click", () => changeWeek(-1));
+  els.nextWeekButton.addEventListener("click", () => changeWeek(1));
   els.goalButton.addEventListener("click", setDailyGoal);
   els.burnrateButton.addEventListener("click", setBurnrate);
   els.resetButton.addEventListener("click", resetAllRecords);
@@ -126,6 +132,11 @@ function bindEvents() {
   });
 }
 
+function changeWeek(direction) {
+  state.weekOffset += direction;
+  render();
+}
+
 async function loadRecords() {
   if (!state.bucketSlug) {
     state.records = [];
@@ -180,6 +191,58 @@ async function addRecord(value) {
     els.calorieInput.value = "";
     await loadRecords();
     setStatus(`Added ${formatNumber(value)} kcal. Today: ${formatNumber(nextTotal)} kcal.`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+async function editCaloriesForDate(date) {
+  if (!requireBitStoreSetup()) {
+    return;
+  }
+
+  const calorieRecords = getEffectiveCalorieRecords(state.records);
+  const currentTotal = totalForDay(date, calorieRecords);
+  const typed = window.prompt(
+    `Calories for ${date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}?`,
+    String(currentTotal)
+  );
+  if (typed === null) {
+    setStatus("Day unchanged.");
+    return;
+  }
+
+  const nextTotal = Math.round(Number(typed));
+  if (!Number.isFinite(nextTotal) || nextTotal < 0 || nextTotal > MAX_DAILY_CALORIES) {
+    setStatus(`Enter a daily total from 0 to ${formatNumber(MAX_DAILY_CALORIES)} kcal.`, true);
+    return;
+  }
+
+  const dailyRecord = findDailyRecordForDate(date);
+  setStatus("Saving day...");
+  try {
+    if (nextTotal === 0) {
+      const dayRecords = state.records.filter((record) => isSameDay(record.createdAt, date));
+      await Promise.all(
+        dayRecords
+          .filter((record) => record.id)
+          .map((record) =>
+            bitstoreFetch(`/records/${encodeURIComponent(record.id)}`, {
+              method: "DELETE",
+              headers: {
+                "X-BitStore-Key": state.writeKey
+              }
+            })
+          )
+      );
+    } else if (dailyRecord?.id) {
+      await updateCalorieRecord(dailyRecord.id, formatDailyValue(date, nextTotal));
+    } else {
+      await createCalorieRecord(formatDailyValue(date, nextTotal));
+    }
+
+    await loadRecords();
+    setStatus(`${formatShortDate(date)} set to ${formatNumber(nextTotal)} kcal.`);
   } catch (error) {
     setStatus(error.message, true);
   }
@@ -611,6 +674,7 @@ function getWeightLossText(burnrateDifference) {
 }
 
 function renderChart(days, totals) {
+  state.chartDays = days;
   const labels = days.map((date) => date.toLocaleDateString(undefined, { weekday: "short" }));
   const cumulativeTotals = totals.reduce((values, total, index) => {
     values.push((values[index - 1] || 0) + total);
@@ -725,6 +789,10 @@ function renderChart(days, totals) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        mode: "index",
+        intersect: false
+      },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -734,6 +802,13 @@ function renderChart(days, totals) {
               return `${item.dataset.label}: ${formatNumber(rawValue)} kcal`;
             }
           }
+        }
+      },
+      onClick: (_event, elements) => {
+        const element = elements.find((item) => item.datasetIndex === 0) || elements[0];
+        const day = state.chartDays[element?.index];
+        if (day) {
+          editCaloriesForDate(day);
         }
       },
       scales: {
@@ -866,6 +941,7 @@ function getCurrentWeek() {
   const day = start.getDay();
   const mondayOffset = day === 0 ? -6 : 1 - day;
   start.setDate(start.getDate() + mondayOffset);
+  start.setDate(start.getDate() + state.weekOffset * 7);
 
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start);

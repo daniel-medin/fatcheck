@@ -63,6 +63,8 @@ button {
 .key-actions,
 .brand-lockup,
 .top-actions,
+.week-title,
+.week-nav,
 .summary-band,
 .today-pill,
 .history-actions {
@@ -142,7 +144,20 @@ h2 {
   box-shadow: none;
 }
 
+.mini-icon-button {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: var(--ink);
+  background: #f2f0ec;
+}
+
 .icon-button svg,
+.mini-icon-button svg,
 .primary-button svg,
 .danger-icon-button svg {
   width: 19px;
@@ -155,7 +170,17 @@ h2 {
   gap: 8px;
 }
 
+.week-title {
+  min-width: 0;
+  gap: 8px;
+}
+
+.week-nav {
+  gap: 4px;
+}
+
 .summary-band {
+  align-items: flex-start;
   margin-bottom: 12px;
   padding: 20px;
   border-radius: var(--radius);
@@ -234,9 +259,22 @@ h2 {
 }
 
 .panel-title-row span {
+  min-width: 0;
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 700;
+  text-align: right;
+}
+
+.chart-panel .panel-title-row {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chart-panel .panel-title-row span {
+  flex-basis: 100%;
+  text-align: left;
 }
 
 .history-actions {
@@ -555,6 +593,7 @@ h2 {
   }
 
   .icon-button svg,
+  .mini-icon-button svg,
   .primary-button svg,
   .danger-icon-button svg {
     width: 17px;
