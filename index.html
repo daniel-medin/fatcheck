@@ -22,15 +22,21 @@
             <h1>Calories</h1>
           </div>
         </div>
-        <button class="icon-button" id="refreshButton" type="button" aria-label="Refresh" title="Refresh">
-          <i data-lucide="refresh-cw"></i>
-        </button>
+        <div class="top-actions">
+          <button class="icon-button" id="goalButton" type="button" aria-label="Set weekly goal" title="Set weekly goal">
+            <i data-lucide="target"></i>
+          </button>
+          <button class="icon-button" id="refreshButton" type="button" aria-label="Refresh" title="Refresh">
+            <i data-lucide="refresh-cw"></i>
+          </button>
+        </div>
       </header>
 
       <section class="summary-band" aria-labelledby="weekTotalLabel">
         <div>
           <p id="weekTotalLabel" class="eyebrow">This week</p>
           <p class="week-total"><span id="weekTotal">0</span><span> kcal</span></p>
+          <p class="goal-delta" id="goalDelta">Set a weekly goal</p>
         </div>
         <div class="today-pill">
           <span>Today</span>

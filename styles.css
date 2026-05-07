@@ -59,6 +59,7 @@ button {
 .calorie-form,
 .key-actions,
 .brand-lockup,
+.top-actions,
 .summary-band,
 .today-pill,
 .history-actions {
@@ -146,6 +147,11 @@ h2 {
   stroke-width: 2.4;
 }
 
+.top-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .summary-band {
   margin-bottom: 12px;
   padding: 20px;
@@ -168,6 +174,27 @@ h2 {
   color: #cae8d6;
   font-size: 0.9rem;
   font-weight: 800;
+}
+
+.goal-delta {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  margin: 12px 0 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #cae8d6;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.goal-delta.is-under {
+  color: #56f09c;
+}
+
+.goal-delta.is-over {
+  color: #ff725d;
 }
 
 .today-pill {

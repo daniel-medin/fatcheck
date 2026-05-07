@@ -1,16 +1,19 @@
 const API_BASE = "https://bitstorehome.azurewebsites.net/api/buckets/fat-check";
 const KEY_STORAGE = "fat-check.write-key";
+const GOAL_STORAGE = "fat-check.weekly-goal";
 const DEFAULT_WRITE_KEY = "6864b11a2a3539fd1f7e4b69c29d9953d638c94b9b2f1cd9";
 const MAX_VALUE_LENGTH = 8;
 
 const state = {
   records: [],
   chart: null,
-  writeKey: localStorage.getItem(KEY_STORAGE) || DEFAULT_WRITE_KEY
+  writeKey: localStorage.getItem(KEY_STORAGE) || DEFAULT_WRITE_KEY,
+  weeklyGoal: Number(localStorage.getItem(GOAL_STORAGE)) || 0
 };
 
 const els = {
   refreshButton: document.querySelector("#refreshButton"),
+  goalButton: document.querySelector("#goalButton"),
   settingsButton: document.querySelector("#settingsButton"),
   resetButton: document.querySelector("#resetButton"),
   calorieForm: document.querySelector("#calorieForm"),
@@ -19,6 +22,7 @@ const els = {
   writeKeyInput: document.querySelector("#writeKeyInput"),
   clearKeyButton: document.querySelector("#clearKeyButton"),
   weekTotal: document.querySelector("#weekTotal"),
+  goalDelta: document.querySelector("#goalDelta"),
   todayTotal: document.querySelector("#todayTotal"),
   weekRange: document.querySelector("#weekRange"),
   recordCount: document.querySelector("#recordCount"),
@@ -40,6 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function bindEvents() {
   els.refreshButton.addEventListener("click", loadRecords);
+  els.goalButton.addEventListener("click", setWeeklyGoal);
   els.resetButton.addEventListener("click", resetAllRecords);
   els.settingsButton.addEventListener("click", () => {
     els.keyForm.hidden = !els.keyForm.hidden;
@@ -179,6 +184,29 @@ async function resetAllRecords() {
   }
 }
 
+function setWeeklyGoal() {
+  const currentGoal = state.weeklyGoal ? String(state.weeklyGoal) : "";
+  const typed = window.prompt("Weekly calorie goal?", currentGoal);
+  if (typed === null) {
+    setStatus("Goal unchanged.");
+    return;
+  }
+
+  const goal = Math.round(Number(typed));
+  if (!Number.isFinite(goal) || goal <= 0) {
+    state.weeklyGoal = 0;
+    localStorage.removeItem(GOAL_STORAGE);
+    render();
+    setStatus("Weekly goal cleared.");
+    return;
+  }
+
+  state.weeklyGoal = goal;
+  localStorage.setItem(GOAL_STORAGE, String(goal));
+  render();
+  setStatus(`Weekly goal set to ${formatNumber(goal)} kcal.`);
+}
+
 async function bitstoreFetch(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     credentials: "omit",
@@ -271,11 +299,37 @@ function render() {
 
   els.weekTotal.textContent = formatNumber(weekTotal);
   els.todayTotal.textContent = formatNumber(todayTotal);
+  renderGoalDelta(weekTotal);
   els.weekRange.textContent = `${formatShortDate(week.start)} - ${formatShortDate(week.end)}`;
   els.recordCount.textContent = `${state.records.length} ${state.records.length === 1 ? "record" : "records"}`;
 
   renderChart(week.days, dailyTotals);
   renderRecent();
+}
+
+function renderGoalDelta(weekTotal) {
+  els.goalDelta.classList.remove("is-under", "is-over");
+
+  if (!state.weeklyGoal) {
+    els.goalDelta.textContent = "Set a weekly goal";
+    return;
+  }
+
+  const difference = weekTotal - state.weeklyGoal;
+  if (difference === 0) {
+    els.goalDelta.textContent = "0 kcal on goal";
+    els.goalDelta.classList.add("is-under");
+    return;
+  }
+
+  if (difference < 0) {
+    els.goalDelta.textContent = `-${formatNumber(Math.abs(difference))} kcal under goal`;
+    els.goalDelta.classList.add("is-under");
+    return;
+  }
+
+  els.goalDelta.textContent = `+${formatNumber(difference)} kcal over goal`;
+  els.goalDelta.classList.add("is-over");
 }
 
 function renderChart(days, totals) {
