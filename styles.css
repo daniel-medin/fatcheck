@@ -178,6 +178,7 @@ h2 {
 
 .goal-delta {
   display: inline-flex;
+  max-width: 100%;
   min-height: 30px;
   align-items: center;
   margin: 12px 0 0;
@@ -187,6 +188,7 @@ h2 {
   background: rgba(255, 255, 255, 0.1);
   font-size: 0.84rem;
   font-weight: 850;
+  line-height: 1.25;
 }
 
 .goal-delta.is-under {

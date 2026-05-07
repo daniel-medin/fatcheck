@@ -45,7 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function bindEvents() {
   els.refreshButton.addEventListener("click", loadRecords);
-  els.goalButton.addEventListener("click", setWeeklyGoal);
+  els.goalButton.addEventListener("click", setDailyGoal);
   els.resetButton.addEventListener("click", resetAllRecords);
   els.settingsButton.addEventListener("click", () => {
     els.keyForm.hidden = !els.keyForm.hidden;
@@ -185,7 +185,7 @@ async function resetAllRecords() {
   }
 }
 
-function setWeeklyGoal() {
+function setDailyGoal() {
   const currentGoal = state.dailyGoal ? String(state.dailyGoal) : "";
   const typed = window.prompt("Daily calorie goal?", currentGoal);
   if (typed === null) {
@@ -205,7 +205,7 @@ function setWeeklyGoal() {
   state.dailyGoal = goal;
   localStorage.setItem(GOAL_STORAGE, String(goal));
   render();
-  setStatus(`Daily goal set to ${formatNumber(goal)} kcal.`);
+  setStatus(`Daily goal set to ${formatNumber(goal)} kcal/day (${formatNumber(getWeeklyGoal())} kcal/week).`);
 }
 
 async function bitstoreFetch(path, options = {}) {
@@ -319,19 +319,20 @@ function renderGoalDelta(weekTotal) {
   }
 
   const difference = weekTotal - weeklyGoal;
+  const goalSuffix = `(${formatNumber(state.dailyGoal)}/day, ${formatNumber(weeklyGoal)}/week)`;
   if (difference === 0) {
-    els.goalDelta.textContent = "0 kcal left this week";
+    els.goalDelta.textContent = `0 kcal left this week ${goalSuffix}`;
     els.goalDelta.classList.add("is-under");
     return;
   }
 
   if (difference < 0) {
-    els.goalDelta.textContent = `${formatNumber(Math.abs(difference))} kcal left this week`;
+    els.goalDelta.textContent = `${formatNumber(Math.abs(difference))} kcal left this week ${goalSuffix}`;
     els.goalDelta.classList.add("is-under");
     return;
   }
 
-  els.goalDelta.textContent = `${formatNumber(difference)} kcal over this week`;
+  els.goalDelta.textContent = `${formatNumber(difference)} kcal over this week ${goalSuffix}`;
   els.goalDelta.classList.add("is-over");
 }
 
