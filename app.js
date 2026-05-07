@@ -519,36 +519,32 @@ function render() {
 function renderGoalDelta(weekTotal) {
   els.goalDelta.classList.remove("is-under", "is-over");
 
-  const weeklyGoal = getWeeklyGoal();
-  if (!weeklyGoal) {
-    els.goalDelta.textContent = "Set a daily goal";
+  if (!state.burnrate) {
+    els.goalDelta.textContent = "Set burnrate";
     return;
   }
 
-  const difference = weekTotal - weeklyGoal;
-  const weightLossText = getWeightLossText();
-  if (difference === 0) {
-    els.goalDelta.textContent = `0 kcal left this week - ${weightLossText}`;
+  const weeklyBurnrate = getWeeklyBurnrate();
+  const burnrateDifference = weekTotal - weeklyBurnrate;
+  const weightLossText = getWeightLossText(burnrateDifference);
+  if (burnrateDifference === 0) {
+    els.goalDelta.textContent = `0 kcal from burnrate this week - ${weightLossText}`;
     els.goalDelta.classList.add("is-under");
     return;
   }
 
-  if (difference < 0) {
-    els.goalDelta.textContent = `${formatNumber(Math.abs(difference))} kcal left this week - ${weightLossText}`;
+  if (burnrateDifference < 0) {
+    els.goalDelta.textContent = `${formatNumber(Math.abs(burnrateDifference))} kcal under burnrate this week - ${weightLossText}`;
     els.goalDelta.classList.add("is-under");
     return;
   }
 
-  els.goalDelta.textContent = `${formatNumber(difference)} kcal over this week - ${weightLossText}`;
+  els.goalDelta.textContent = `${formatNumber(burnrateDifference)} kcal over burnrate this week - ${weightLossText}`;
   els.goalDelta.classList.add("is-over");
 }
 
-function getWeightLossText() {
-  if (!state.burnrate) {
-    return "set burnrate";
-  }
-
-  const weeklyWeightLoss = ((state.burnrate - state.dailyGoal) * 7) / KCAL_PER_KG;
+function getWeightLossText(burnrateDifference) {
+  const weeklyWeightLoss = -burnrateDifference / KCAL_PER_KG;
   return `weightloss this week ${weeklyWeightLoss.toFixed(1)} Kg`;
 }
 
@@ -737,6 +733,10 @@ function getCurrentWeek() {
 
 function getWeeklyGoal() {
   return state.dailyGoal ? state.dailyGoal * 7 : 0;
+}
+
+function getWeeklyBurnrate() {
+  return state.burnrate ? state.burnrate * 7 : 0;
 }
 
 function getStoredDailyGoal() {
