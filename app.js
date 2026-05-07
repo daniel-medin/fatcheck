@@ -1,6 +1,7 @@
 const API_BASE = "https://bitstorehome.azurewebsites.net/api/buckets/fat-check";
 const KEY_STORAGE = "fat-check.write-key";
-const GOAL_STORAGE = "fat-check.weekly-goal";
+const GOAL_STORAGE = "fat-check.daily-goal";
+const LEGACY_GOAL_STORAGE = "fat-check.weekly-goal";
 const DEFAULT_WRITE_KEY = "6864b11a2a3539fd1f7e4b69c29d9953d638c94b9b2f1cd9";
 const MAX_VALUE_LENGTH = 8;
 
@@ -8,7 +9,7 @@ const state = {
   records: [],
   chart: null,
   writeKey: localStorage.getItem(KEY_STORAGE) || DEFAULT_WRITE_KEY,
-  weeklyGoal: Number(localStorage.getItem(GOAL_STORAGE)) || 0
+  dailyGoal: getStoredDailyGoal()
 };
 
 const els = {
@@ -185,8 +186,8 @@ async function resetAllRecords() {
 }
 
 function setWeeklyGoal() {
-  const currentGoal = state.weeklyGoal ? String(state.weeklyGoal) : "";
-  const typed = window.prompt("Weekly calorie goal?", currentGoal);
+  const currentGoal = state.dailyGoal ? String(state.dailyGoal) : "";
+  const typed = window.prompt("Daily calorie goal?", currentGoal);
   if (typed === null) {
     setStatus("Goal unchanged.");
     return;
@@ -194,17 +195,17 @@ function setWeeklyGoal() {
 
   const goal = Math.round(Number(typed));
   if (!Number.isFinite(goal) || goal <= 0) {
-    state.weeklyGoal = 0;
+    state.dailyGoal = 0;
     localStorage.removeItem(GOAL_STORAGE);
     render();
-    setStatus("Weekly goal cleared.");
+    setStatus("Daily goal cleared.");
     return;
   }
 
-  state.weeklyGoal = goal;
+  state.dailyGoal = goal;
   localStorage.setItem(GOAL_STORAGE, String(goal));
   render();
-  setStatus(`Weekly goal set to ${formatNumber(goal)} kcal.`);
+  setStatus(`Daily goal set to ${formatNumber(goal)} kcal.`);
 }
 
 async function bitstoreFetch(path, options = {}) {
@@ -310,12 +311,13 @@ function render() {
 function renderGoalDelta(weekTotal) {
   els.goalDelta.classList.remove("is-under", "is-over");
 
-  if (!state.weeklyGoal) {
-    els.goalDelta.textContent = "Set a weekly goal";
+  const weeklyGoal = getWeeklyGoal();
+  if (!weeklyGoal) {
+    els.goalDelta.textContent = "Set a daily goal";
     return;
   }
 
-  const difference = weekTotal - state.weeklyGoal;
+  const difference = weekTotal - weeklyGoal;
   if (difference === 0) {
     els.goalDelta.textContent = "0 kcal left this week";
     els.goalDelta.classList.add("is-under");
@@ -338,8 +340,9 @@ function renderChart(days, totals) {
     values.push((values[index - 1] || 0) + total);
     return values;
   }, []);
-  const goalLine = days.map(() => state.weeklyGoal || null);
-  const yMax = Math.max(4000, state.weeklyGoal || 0, ...cumulativeTotals, ...totals);
+  const weeklyGoal = getWeeklyGoal();
+  const goalLine = days.map(() => weeklyGoal || null);
+  const yMax = Math.max(4000, weeklyGoal || 0, ...cumulativeTotals, ...totals);
 
   if (!window.Chart) {
     return;
@@ -499,6 +502,27 @@ function getCurrentWeek() {
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
   return { start, end, days };
+}
+
+function getWeeklyGoal() {
+  return state.dailyGoal ? state.dailyGoal * 7 : 0;
+}
+
+function getStoredDailyGoal() {
+  const storedDailyGoal = Number(localStorage.getItem(GOAL_STORAGE));
+  if (Number.isFinite(storedDailyGoal) && storedDailyGoal > 0) {
+    return storedDailyGoal;
+  }
+
+  const legacyWeeklyGoal = Number(localStorage.getItem(LEGACY_GOAL_STORAGE));
+  if (Number.isFinite(legacyWeeklyGoal) && legacyWeeklyGoal > 0) {
+    const dailyGoal = Math.round(legacyWeeklyGoal / 7);
+    localStorage.setItem(GOAL_STORAGE, String(dailyGoal));
+    localStorage.removeItem(LEGACY_GOAL_STORAGE);
+    return dailyGoal;
+  }
+
+  return 0;
 }
 
 function totalForDay(day, records) {
