@@ -339,7 +339,7 @@ function renderChart(days, totals) {
     return values;
   }, []);
   const goalLine = days.map(() => state.weeklyGoal || null);
-  const yMax = Math.max(4000, state.weeklyGoal || 0);
+  const yMax = Math.max(4000, state.weeklyGoal || 0, ...cumulativeTotals, ...totals);
 
   if (!window.Chart) {
     return;
@@ -347,8 +347,9 @@ function renderChart(days, totals) {
 
   if (state.chart) {
     state.chart.data.labels = labels;
-    state.chart.data.datasets[0].data = cumulativeTotals;
-    state.chart.data.datasets[1].data = goalLine;
+    state.chart.data.datasets[0].data = totals;
+    state.chart.data.datasets[1].data = cumulativeTotals;
+    state.chart.data.datasets[2].data = goalLine;
     state.chart.options.scales.y.max = yMax;
     state.chart.update();
     return;
@@ -359,6 +360,16 @@ function renderChart(days, totals) {
     data: {
       labels,
       datasets: [
+        {
+          type: "bar",
+          label: "Daily",
+          data: totals,
+          borderRadius: 8,
+          backgroundColor: "rgba(60, 109, 240, 0.62)",
+          borderColor: "#3c6df0",
+          borderWidth: 1,
+          maxBarThickness: 30
+        },
         {
           type: "line",
           label: "Week total",
