@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js" defer></script>
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
-    <script src="app.js?v=20260507-5" defer></script>
+    <script src="app.js?v=20260507-6" defer></script>
   </head>
   <body>
     <main class="app">
@@ -23,13 +23,16 @@
           </div>
         </div>
         <div class="top-actions">
+          <button class="icon-button" id="settingsButton" type="button" aria-label="BitStore setup" title="BitStore setup">
+            <i data-lucide="key-round"></i>
+          </button>
           <button class="icon-button" id="goalButton" type="button" aria-label="Set daily goal" title="Set daily goal">
             <i data-lucide="target"></i>
           </button>
           <button class="icon-button" id="burnrateButton" type="button" aria-label="Set burnrate" title="Set burnrate">
             <i data-lucide="flame"></i>
           </button>
-          <button class="icon-button" id="refreshButton" type="button" aria-label="Refresh" title="Refresh">
+          <button class="icon-button refresh-button" id="refreshButton" type="button" aria-label="Refresh" title="Refresh">
             <i data-lucide="refresh-cw"></i>
           </button>
         </div>
@@ -60,9 +63,6 @@
       <section class="entry-panel" aria-labelledby="addCaloriesTitle">
         <div class="panel-title-row">
           <h2 id="addCaloriesTitle">Add calories</h2>
-          <button class="icon-button ghost" id="settingsButton" type="button" aria-label="BitStore setup" title="BitStore setup">
-            <i data-lucide="key-round"></i>
-          </button>
         </div>
 
         <form id="calorieForm" class="calorie-form" autocomplete="off">
@@ -82,22 +82,6 @@
           <button type="button" data-quick="500">+500</button>
           <button type="button" data-quick="750">+750</button>
         </div>
-
-        <form id="keyForm" class="key-form" autocomplete="off" hidden>
-          <label>
-            <span>Bucket slug</span>
-            <input id="bucketSlugInput" name="bucketSlug" type="text" placeholder="fat-check" autocapitalize="none" spellcheck="false">
-          </label>
-          <label>
-            <span>Write key</span>
-            <input id="writeKeyInput" name="writeKey" type="password" placeholder="X-BitStore-Key">
-          </label>
-          <a class="setup-link" href="https://bitstorehome.azurewebsites.net/HowTo" target="_blank" rel="noopener noreferrer">BitStore setup guide</a>
-          <div class="key-actions">
-            <button class="secondary-button" type="submit">Save</button>
-            <button class="text-button" id="clearKeyButton" type="button">Forget</button>
-          </div>
-        </form>
       </section>
 
       <section class="history-panel" aria-labelledby="recentTitle">
@@ -115,5 +99,32 @@
 
       <p id="statusMessage" class="status-message" role="status" aria-live="polite"></p>
     </main>
+
+    <div class="modal" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+      <div class="modal-backdrop" id="settingsBackdrop"></div>
+      <section class="modal-panel">
+        <div class="panel-title-row">
+          <h2 id="settingsTitle">Settings</h2>
+          <button class="icon-button ghost" id="closeSettingsButton" type="button" aria-label="Close settings" title="Close settings">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <form id="keyForm" class="key-form" autocomplete="off">
+          <label>
+            <span>Bucket slug</span>
+            <input id="bucketSlugInput" name="bucketSlug" type="text" placeholder="fat-check" autocapitalize="none" spellcheck="false">
+          </label>
+          <label>
+            <span>Write key</span>
+            <input id="writeKeyInput" name="writeKey" type="password" placeholder="X-BitStore-Key">
+          </label>
+          <a class="setup-link" href="https://bitstorehome.azurewebsites.net/HowTo" target="_blank" rel="noopener noreferrer">BitStore setup guide</a>
+          <div class="key-actions">
+            <button class="secondary-button" type="submit">Save</button>
+            <button class="text-button" id="clearKeyButton" type="button">Forget</button>
+          </div>
+        </form>
+      </section>
+    </div>
   </body>
 </html>

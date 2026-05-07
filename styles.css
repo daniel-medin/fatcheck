@@ -35,6 +35,10 @@ body {
     var(--paper);
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 button,
 input {
   font: inherit;
@@ -333,6 +337,42 @@ h2 {
   border-top: 1px solid var(--line);
 }
 
+.modal[hidden] {
+  display: none;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  padding: 16px;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 19, 24, 0.48);
+}
+
+.modal-panel {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 428px);
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.modal-panel .key-form {
+  border-top: 0;
+  padding-top: 12px;
+}
+
 .setup-link {
   color: var(--green);
   font-size: 0.86rem;
@@ -481,30 +521,41 @@ h2 {
   }
 
   .topbar {
-    gap: 10px;
-  }
-
-  .brand-lockup {
-    gap: 9px;
-  }
-
-  .logo {
-    width: 50px;
-    height: 50px;
-  }
-
-  h1 {
-    font-size: 1.65rem;
-  }
-
-  .top-actions {
     gap: 6px;
   }
 
+  .brand-lockup {
+    gap: 8px;
+  }
+
+  .logo {
+    width: 44px;
+    height: 44px;
+  }
+
+  h1 {
+    font-size: 1.42rem;
+  }
+
+  .top-actions {
+    gap: 4px;
+  }
+
   .icon-button {
-    width: 40px;
-    height: 40px;
-    flex-basis: 40px;
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
+  }
+
+  .refresh-button {
+    display: none;
+  }
+
+  .icon-button svg,
+  .primary-button svg,
+  .danger-icon-button svg {
+    width: 17px;
+    height: 17px;
   }
 
   .summary-band {

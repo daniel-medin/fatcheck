@@ -23,6 +23,9 @@ const els = {
   goalButton: document.querySelector("#goalButton"),
   burnrateButton: document.querySelector("#burnrateButton"),
   settingsButton: document.querySelector("#settingsButton"),
+  settingsModal: document.querySelector("#settingsModal"),
+  settingsBackdrop: document.querySelector("#settingsBackdrop"),
+  closeSettingsButton: document.querySelector("#closeSettingsButton"),
   resetButton: document.querySelector("#resetButton"),
   calorieForm: document.querySelector("#calorieForm"),
   calorieInput: document.querySelector("#calorieInput"),
@@ -47,7 +50,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   els.bucketSlugInput.value = state.bucketSlug;
   els.writeKeyInput.value = state.writeKey;
-  els.keyForm.hidden = hasBitStoreSetup();
   bindEvents();
   loadRecords();
 });
@@ -57,10 +59,12 @@ function bindEvents() {
   els.goalButton.addEventListener("click", setDailyGoal);
   els.burnrateButton.addEventListener("click", setBurnrate);
   els.resetButton.addEventListener("click", resetAllRecords);
-  els.settingsButton.addEventListener("click", () => {
-    els.keyForm.hidden = !els.keyForm.hidden;
-    if (!els.keyForm.hidden) {
-      els.writeKeyInput.focus();
+  els.settingsButton.addEventListener("click", openSettingsModal);
+  els.closeSettingsButton.addEventListener("click", closeSettingsModal);
+  els.settingsBackdrop.addEventListener("click", closeSettingsModal);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !els.settingsModal.hidden) {
+      closeSettingsModal();
     }
   });
 
@@ -71,7 +75,7 @@ function bindEvents() {
     if (state.bucketSlug && state.writeKey) {
       localStorage.setItem(BUCKET_STORAGE, state.bucketSlug);
       localStorage.setItem(KEY_STORAGE, state.writeKey);
-      els.keyForm.hidden = true;
+      closeSettingsModal();
       setStatus("BitStore setup saved on this device.");
       loadRecords();
       return;
@@ -374,10 +378,24 @@ function requireBitStoreSetup() {
   window.alert(
     "Set up your BitStore bucket slug and API write key first to store data.\n\nOpen the setup guide:\nhttps://bitstorehome.azurewebsites.net/HowTo"
   );
-  els.keyForm.hidden = false;
-  els.bucketSlugInput.focus();
+  openSettingsModal();
   setStatus("BitStore setup is required to store data.", true);
   return false;
+}
+
+function openSettingsModal() {
+  els.bucketSlugInput.value = state.bucketSlug;
+  els.writeKeyInput.value = state.writeKey;
+  els.settingsModal.hidden = false;
+  document.body.classList.add("modal-open");
+  requestAnimationFrame(() => {
+    (state.bucketSlug ? els.writeKeyInput : els.bucketSlugInput).focus();
+  });
+}
+
+function closeSettingsModal() {
+  els.settingsModal.hidden = true;
+  document.body.classList.remove("modal-open");
 }
 
 function hasBitStoreSetup() {
@@ -510,18 +528,18 @@ function renderGoalDelta(weekTotal) {
   const difference = weekTotal - weeklyGoal;
   const weightLossText = getWeightLossText();
   if (difference === 0) {
-    els.goalDelta.textContent = `0 kcal left this week · ${weightLossText}`;
+    els.goalDelta.textContent = `0 kcal left this week - ${weightLossText}`;
     els.goalDelta.classList.add("is-under");
     return;
   }
 
   if (difference < 0) {
-    els.goalDelta.textContent = `${formatNumber(Math.abs(difference))} kcal left this week · ${weightLossText}`;
+    els.goalDelta.textContent = `${formatNumber(Math.abs(difference))} kcal left this week - ${weightLossText}`;
     els.goalDelta.classList.add("is-under");
     return;
   }
 
-  els.goalDelta.textContent = `${formatNumber(difference)} kcal over this week · ${weightLossText}`;
+  els.goalDelta.textContent = `${formatNumber(difference)} kcal over this week - ${weightLossText}`;
   els.goalDelta.classList.add("is-over");
 }
 
