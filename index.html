@@ -94,20 +94,9 @@
         </div>
       </section>
 
-      <section class="history-panel" aria-labelledby="recentTitle">
-        <div class="panel-title-row">
-          <h2 id="recentTitle">Recent</h2>
-          <div class="history-actions">
-            <span id="recordCount">0 records</span>
-            <button class="danger-icon-button" id="resetButton" type="button" aria-label="Reset all" title="Reset all">
-              <i data-lucide="rotate-ccw"></i>
-            </button>
-          </div>
-        </div>
-        <ol id="recentList" class="recent-list"></ol>
-      </section>
-
-      <p id="statusMessage" class="status-message" role="status" aria-live="polite"></p>
+      <footer class="app-footer">
+        <p id="statusMessage" class="status-message" role="status" aria-live="polite"></p>
+      </footer>
     </main>
 
     <div class="modal" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
@@ -134,6 +123,12 @@
             <button class="text-button" id="clearKeyButton" type="button">Forget</button>
           </div>
         </form>
+        <div class="danger-zone">
+          <button class="danger-action-button" id="resetButton" type="button">
+            <i data-lucide="trash-2"></i>
+            <span>Delete entries</span>
+          </button>
+        </div>
       </section>
     </div>
   </body>

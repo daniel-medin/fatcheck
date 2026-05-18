@@ -49,6 +49,8 @@ button {
 }
 
 .app {
+  display: flex;
+  flex-direction: column;
   width: min(100vw, 460px);
   min-height: 100vh;
   margin: 0 auto;
@@ -66,8 +68,7 @@ button {
 .week-title,
 .week-nav,
 .summary-band,
-.today-pill,
-.history-actions {
+.today-pill {
   display: flex;
   align-items: center;
 }
@@ -159,7 +160,7 @@ h2 {
 .icon-button svg,
 .mini-icon-button svg,
 .primary-button svg,
-.danger-icon-button svg {
+.danger-action-button svg {
   width: 19px;
   height: 19px;
   stroke-width: 2.4;
@@ -249,8 +250,7 @@ h2 {
 }
 
 .chart-panel,
-.entry-panel,
-.history-panel {
+.entry-panel {
   margin-top: 12px;
   padding: 16px;
   border: 1px solid var(--line);
@@ -269,10 +269,6 @@ h2 {
 .chart-panel .panel-title-row span {
   font-size: 0.78rem;
   white-space: nowrap;
-}
-
-.history-actions {
-  gap: 8px;
 }
 
 .chart-wrap {
@@ -430,96 +426,62 @@ h2 {
   background: transparent;
 }
 
-.recent-list {
-  display: grid;
-  gap: 8px;
-  min-height: 52px;
-  margin: 14px 0 0;
-  padding: 0;
-  list-style: none;
+.danger-zone {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
 }
 
-.recent-item {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
+.danger-action-button {
+  display: inline-flex;
+  min-height: 44px;
   align-items: center;
-  gap: 10px;
-  min-height: 54px;
-  padding: 10px 10px 10px 12px;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
   border-radius: var(--radius);
-  background: #f7f4ee;
-}
-
-.recent-main {
-  min-width: 0;
-}
-
-.recent-main strong {
-  display: block;
-  line-height: 1.15;
-}
-
-.recent-main span {
-  display: block;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.recent-value {
-  color: var(--orange);
+  padding: 0 14px;
+  color: #b42318;
+  background: #fff0ed;
   font-weight: 850;
 }
 
-.delete-button {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  border: 0;
-  border-radius: 999px;
-  color: var(--muted);
-  background: transparent;
-}
-
-.danger-icon-button {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  border: 0;
-  border-radius: 999px;
-  color: #b42318;
-  background: #fff0ed;
-}
-
-.delete-button svg {
-  width: 17px;
-  height: 17px;
-}
-
-.empty-state {
-  min-height: 54px;
-  padding: 16px 10px;
-  color: var(--muted);
-  font-weight: 700;
-  text-align: center;
+.app-footer {
+  margin-top: auto;
+  padding-top: 12px;
 }
 
 .status-message {
+  display: flex;
   min-height: 22px;
-  margin: 12px 2px 0;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin: 0 2px;
   color: var(--muted);
   font-size: 0.86rem;
   font-weight: 700;
   text-align: center;
 }
 
+.status-message.is-syncing::before {
+  width: 13px;
+  height: 13px;
+  border: 2px solid #c6ccd3;
+  border-top-color: var(--green);
+  border-radius: 999px;
+  content: "";
+  animation: status-spin 0.7s linear infinite;
+}
+
 .status-message.is-error {
   color: #b42318;
+}
+
+@keyframes status-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (min-width: 760px) {
@@ -589,7 +551,7 @@ h2 {
   .icon-button svg,
   .mini-icon-button svg,
   .primary-button svg,
-  .danger-icon-button svg {
+  .danger-action-button svg {
     width: 17px;
     height: 17px;
   }
