@@ -1,4 +1,4 @@
-const BITSTORE_BASE = "https://bitstorehome.azurewebsites.net";
+const BITSTORE_BASE = "https://bitstore.mrcheng.se";
 const BUCKET_STORAGE = "fat-check.bucket-slug";
 const KEY_STORAGE = "fat-check.write-key";
 const GOAL_STORAGE = "fat-check.daily-goal";
@@ -453,7 +453,7 @@ function requireBitStoreSetup() {
     return true;
   }
   window.alert(
-    "Set up your BitStore bucket slug and API write key first to store data.\n\nOpen the setup guide:\nhttps://bitstorehome.azurewebsites.net/HowTo"
+    "Set up your BitStore bucket slug and API write key first to store data.\n\nOpen the setup guide:\nhttps://bitstore.mrcheng.se/HowTo"
   );
   openSettingsModal();
   setStatus("BitStore setup is required to store data.", true);
