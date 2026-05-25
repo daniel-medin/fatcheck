@@ -4,7 +4,7 @@ Guidance for coding agents working on Fat Check.
 
 ## Project Shape
 
-Fat Check is a static GitHub Pages app. There is no build step and no package manager.
+Fat Check is a static site. There is no build step and no package manager.
 
 Primary files:
 
@@ -12,7 +12,6 @@ Primary files:
 - `styles.css` for layout and visual design.
 - `app.js` for BitStore sync, calculations, chart rendering, and UI behavior.
 - `assets/logo.svg` for the app icon.
-- `.github/workflows/pages.yml` for GitHub Pages deployment.
 
 ## Runtime Dependencies
 
@@ -35,7 +34,7 @@ The app stores BitStore setup locally in browser `localStorage`:
 Records are fetched from:
 
 ```text
-https://bitstorehome.azurewebsites.net/api/buckets/{slug}/records
+https://bitstore.mrcheng.se/api/buckets/{slug}/records
 ```
 
 Calories are stored as one daily total record per day:

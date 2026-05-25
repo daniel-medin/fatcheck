@@ -1,11 +1,11 @@
 # Fat Check
 
-Fat Check is a no-build, one-page calorie tracker for GitHub Pages. It feels like a small mobile app and stores data in a BitStore bucket configured locally in each browser.
+Fat Check is a no-build, one-page calorie tracker. It feels like a small mobile app and stores data in a BitStore bucket configured locally in each browser.
 
 Live app:
 
 ```text
-https://daniel-medin.github.io/fatcheck/
+https://fatcheck.mrcheng.se/
 ```
 
 ## Features
@@ -29,7 +29,7 @@ Open the key icon in the app header and save:
 The app reads from the saved bucket slug:
 
 ```text
-https://bitstorehome.azurewebsites.net/api/buckets/{your-slug}/records
+https://bitstore.mrcheng.se/api/buckets/{your-slug}/records
 ```
 
 The bucket slug and write key are not committed to this repository. A public link to the app will not show private bucket data unless that browser has a bucket slug saved locally.
@@ -37,7 +37,7 @@ The bucket slug and write key are not committed to this repository. A public lin
 BitStore guide:
 
 ```text
-https://bitstorehome.azurewebsites.net/HowTo
+https://bitstore.mrcheng.se/HowTo
 ```
 
 ## Data Format
@@ -97,4 +97,4 @@ Then open:
 http://127.0.0.1:4173/
 ```
 
-GitHub Pages deploys from `.github/workflows/pages.yml`.
+Production is served as a static site from the Oracle VM through Caddy.

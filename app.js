@@ -1,4 +1,4 @@
-const BITSTORE_BASE = "https://bitstorehome.azurewebsites.net";
+const BITSTORE_BASE = "https://bitstore.mrcheng.se";
 const BUCKET_STORAGE = "fat-check.bucket-slug";
 const KEY_STORAGE = "fat-check.write-key";
 const GOAL_STORAGE = "fat-check.daily-goal";
@@ -16,6 +16,7 @@ const state = {
   chart: null,
   chartDays: [],
   weekOffset: 0,
+  syncedWeekKeys: new Set(),
   bucketSlug: localStorage.getItem(BUCKET_STORAGE) || "",
   writeKey: localStorage.getItem(KEY_STORAGE) || "",
   dailyGoal: getStoredDailyGoal(),
@@ -43,8 +44,6 @@ const els = {
   goalDelta: document.querySelector("#goalDelta"),
   todayTotal: document.querySelector("#todayTotal"),
   weekRange: document.querySelector("#weekRange"),
-  recordCount: document.querySelector("#recordCount"),
-  recentList: document.querySelector("#recentList"),
   statusMessage: document.querySelector("#statusMessage"),
   chartCanvas: document.querySelector("#weekChart")
 };
@@ -61,7 +60,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function bindEvents() {
-  els.refreshButton.addEventListener("click", loadRecords);
+  els.refreshButton.addEventListener("click", () => loadRecords({ force: true }));
   els.previousWeekButton.addEventListener("click", () => changeWeek(-1));
   els.nextWeekButton.addEventListener("click", () => changeWeek(1));
   els.goalButton.addEventListener("click", setDailyGoal);
@@ -83,9 +82,11 @@ function bindEvents() {
     if (state.bucketSlug && state.writeKey) {
       localStorage.setItem(BUCKET_STORAGE, state.bucketSlug);
       localStorage.setItem(KEY_STORAGE, state.writeKey);
+      state.records = [];
+      state.syncedWeekKeys.clear();
       closeSettingsModal();
       setStatus("BitStore setup saved on this device.");
-      loadRecords();
+      loadRecords({ force: true });
       return;
     }
     setStatus("Enter both bucket slug and write key.", true);
@@ -97,6 +98,7 @@ function bindEvents() {
     state.dailyGoal = 0;
     state.burnrate = 0;
     state.records = [];
+    state.syncedWeekKeys.clear();
     els.bucketSlugInput.value = "";
     els.writeKeyInput.value = "";
     localStorage.removeItem(BUCKET_STORAGE);
@@ -123,41 +125,35 @@ function bindEvents() {
       els.calorieInput.focus();
     });
   });
-
-  els.recentList.addEventListener("click", async (event) => {
-    const button = event.target.closest("[data-delete-id]");
-    if (!button) {
-      return;
-    }
-    await deleteRecord(button.dataset.deleteId);
-  });
 }
 
 function changeWeek(direction) {
   state.weekOffset += direction;
+  render();
   loadRecords();
 }
 
-async function loadRecords() {
+async function loadRecords({ force = false, week = getCurrentWeek() } = {}) {
   if (!state.bucketSlug) {
     state.records = [];
+    state.syncedWeekKeys.clear();
     render();
     setStatus("Set up your BitStore bucket to sync data.");
     return;
   }
 
-  setStatus("Syncing BitStore...");
-  try {
-    const selectedWeek = getCurrentWeek();
-    const currentWeek = getWeekForOffset(0);
-    const weekRequests = [fetchWeekRecords(selectedWeek)];
-    if (!isSameDay(selectedWeek.start, currentWeek.start)) {
-      weekRequests.push(fetchWeekRecords(currentWeek));
-    }
+  const weekKey = getWeekKey(week.start);
+  if (!force && state.syncedWeekKeys.has(weekKey)) {
+    render();
+    setStatus("Synced.");
+    return;
+  }
 
-    const [settingsData, ...weekResults] = await Promise.all([fetchSettingsRecords(), ...weekRequests]);
+  setStatus("Syncing...");
+  try {
+    const [settingsData, weekData] = await Promise.all([fetchSettingsRecords(), fetchWeekRecords(week)]);
     const settingRecords = settingsData.records || [];
-    const bitstoreRecords = weekResults.flatMap((data) => data.records || []);
+    const bitstoreRecords = weekData.records || [];
     const hasRemoteGoal = syncDailyGoalFromRecords(settingRecords);
     const hasRemoteBurnrate = syncBurnrateFromRecords(settingRecords);
     if (!hasRemoteGoal && state.dailyGoal && hasBitStoreSetup()) {
@@ -166,9 +162,10 @@ async function loadRecords() {
     if (!hasRemoteBurnrate && state.burnrate && hasBitStoreSetup()) {
       await saveBurnrateRecord(state.burnrate);
     }
-    state.records = normalizeRecords(bitstoreRecords);
+    mergeRecords(normalizeRecords(bitstoreRecords), week);
+    state.syncedWeekKeys.add(weekKey);
     render();
-    setStatus(`Synced ${state.records.length} ${state.records.length === 1 ? "record" : "records"}.`);
+    setStatus("Synced.");
   } catch (error) {
     render();
     setStatus(error.message, true);
@@ -182,6 +179,7 @@ async function addRecord(value) {
 
   const amount = Number(value);
   const today = new Date();
+  await ensureWeekForDate(today);
   const todayRecord = findDailyRecordForDate(today);
   const currentTotal = todayRecord ? todayRecord.value : totalForDay(today, getEffectiveCalorieRecords(state.records));
   const nextTotal = currentTotal + amount;
@@ -198,7 +196,7 @@ async function addRecord(value) {
       await createCalorieRecord(formatDailyValue(today, nextTotal));
     }
     els.calorieInput.value = "";
-    await loadRecords();
+    await loadRecords({ force: true, week: getWeekForDate(today) });
     setStatus(`Added ${formatNumber(value)} kcal. Today: ${formatNumber(nextTotal)} kcal.`);
   } catch (error) {
     setStatus(error.message, true);
@@ -210,6 +208,7 @@ async function editCaloriesForDate(date) {
     return;
   }
 
+  await ensureWeekForDate(date);
   const calorieRecords = getEffectiveCalorieRecords(state.records);
   const currentTotal = totalForDay(date, calorieRecords);
   const typed = window.prompt(
@@ -244,51 +243,15 @@ async function editCaloriesForDate(date) {
             })
           )
       );
+      removeRecordsFromCache(dayRecords);
     } else if (dailyRecord?.id) {
       await updateCalorieRecord(dailyRecord.id, formatDailyValue(date, nextTotal));
     } else {
       await createCalorieRecord(formatDailyValue(date, nextTotal));
     }
 
-    await loadRecords();
+    await loadRecords({ force: true, week: getWeekForDate(date) });
     setStatus(`${formatShortDate(date)} set to ${formatNumber(nextTotal)} kcal.`);
-  } catch (error) {
-    setStatus(error.message, true);
-  }
-}
-
-async function deleteRecord(id) {
-  if (!id || !requireBitStoreSetup()) {
-    return;
-  }
-
-  const targetRecord = state.records.find((record) => String(record.id) === String(id));
-  const recordsToDelete =
-    targetRecord?.kind === "daily"
-      ? state.records.filter((record) => isSameDay(record.createdAt, targetRecord.createdAt))
-      : [targetRecord].filter(Boolean);
-
-  if (!recordsToDelete.length) {
-    setStatus("Entry not found.", true);
-    return;
-  }
-
-  setStatus("Deleting...");
-  try {
-    await Promise.all(
-      recordsToDelete
-        .filter((record) => record.id)
-        .map((record) =>
-          bitstoreFetch(`/records/${encodeURIComponent(record.id)}`, {
-            method: "DELETE",
-            headers: {
-              "X-BitStore-Key": state.writeKey
-            }
-          })
-        )
-    );
-    await loadRecords();
-    setStatus("Entry deleted.");
   } catch (error) {
     setStatus(error.message, true);
   }
@@ -307,25 +270,20 @@ async function resetAllRecords() {
 
   setStatus("Resetting...");
   try {
-    const calorieRecords = await fetchAllCalorieRecords();
-    if (!calorieRecords.length) {
-      setStatus("Nothing to reset.");
-      return;
-    }
-
-    await Promise.all(
-      calorieRecords
-        .filter((record) => record.id)
-        .map((record) =>
-          bitstoreFetch(`/records/${encodeURIComponent(record.id)}`, {
-            method: "DELETE",
-            headers: {
-              "X-BitStore-Key": state.writeKey
-            }
-          })
-        )
-    );
+    await bitstoreFetch("/records", {
+      method: "DELETE",
+      headers: {
+        "X-BitStore-Key": state.writeKey
+      }
+    });
     state.records = [];
+    state.syncedWeekKeys.clear();
+    if (state.dailyGoal) {
+      await saveDailyGoalRecord(state.dailyGoal);
+    }
+    if (state.burnrate) {
+      await saveBurnrateRecord(state.burnrate);
+    }
     render();
     setStatus("All entries reset.");
   } catch (error) {
@@ -444,32 +402,6 @@ function fetchSettingsRecords() {
   return bitstoreFetch(`/records?${params}`);
 }
 
-async function fetchAllCalorieRecords() {
-  const records = [];
-  let cursor = "";
-  let pageCount = 0;
-
-  do {
-    const params = new URLSearchParams({ take: "200" });
-    if (cursor) {
-      params.set("cursor", cursor);
-    }
-
-    const data = await bitstoreFetch(`/records?${params}`);
-    records.push(...(data.records || []));
-
-    const nextCursor = getNextCursor(data);
-    cursor = nextCursor && nextCursor !== cursor ? nextCursor : "";
-    pageCount += 1;
-  } while (cursor && pageCount < 25);
-
-  return normalizeRecords(records);
-}
-
-function getNextCursor(data) {
-  return data.nextCursor || data.cursor || data.next || "";
-}
-
 async function createCalorieRecord(value) {
   return bitstoreFetch("/records", {
     method: "POST",
@@ -539,7 +471,7 @@ function requireBitStoreSetup() {
     return true;
   }
   window.alert(
-    "Set up your BitStore bucket slug and API write key first to store data.\n\nOpen the setup guide:\nhttps://bitstorehome.azurewebsites.net/HowTo"
+    "Set up your BitStore bucket slug and API write key first to store data.\n\nOpen the setup guide:\nhttps://bitstore.mrcheng.se/HowTo"
   );
   openSettingsModal();
   setStatus("BitStore setup is required to store data.", true);
@@ -610,6 +542,30 @@ function normalizeRecords(records) {
     })
     .filter((record) => Number.isFinite(record.value) && record.value > 0 && record.createdAt)
     .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+function mergeRecords(records, week) {
+  const byKey = new Map(
+    state.records
+      .filter((record) => !week || !isRecordInWeek(record, week))
+      .map((record) => [getRecordCacheKey(record), record])
+  );
+  records.forEach((record) => {
+    byKey.set(getRecordCacheKey(record), record);
+  });
+  state.records = [...byKey.values()].sort((a, b) => b.createdAt - a.createdAt);
+}
+
+function removeRecordsFromCache(records) {
+  const removedKeys = new Set(records.map(getRecordCacheKey));
+  state.records = state.records.filter((record) => !removedKeys.has(getRecordCacheKey(record)));
+}
+
+async function ensureWeekForDate(date) {
+  const week = getWeekForDate(date);
+  if (!state.syncedWeekKeys.has(getWeekKey(week.start))) {
+    await loadRecords({ week });
+  }
 }
 
 function syncDailyGoalFromRecords(records) {
@@ -688,10 +644,8 @@ function render() {
   els.todayTotal.textContent = formatNumber(todayTotal);
   renderGoalDelta(weekTotal);
   els.weekRange.textContent = `Mon-Sun, ${formatShortDate(week.start)} - ${formatShortDate(week.end)}`;
-  els.recordCount.textContent = `${calorieRecords.length} ${calorieRecords.length === 1 ? "record" : "records"}`;
 
   renderChart(week.days, dailyTotals);
-  renderRecent();
 }
 
 function renderGoalDelta(weekTotal) {
@@ -943,74 +897,29 @@ function unscaleChartValue(value, config) {
   return Math.round(config.rawMid + ((value - config.displayMid) / config.displayMid) * (config.rawMax - config.rawMid));
 }
 
-function renderRecent() {
-  const recent = getEffectiveCalorieRecords(state.records).slice(0, 12);
-  els.recentList.innerHTML = "";
-
-  if (!recent.length) {
-    const empty = document.createElement("li");
-    empty.className = "empty-state";
-    empty.textContent = "No calories yet.";
-    els.recentList.append(empty);
-    return;
-  }
-
-  const fragment = document.createDocumentFragment();
-  recent.forEach((record) => {
-    const item = document.createElement("li");
-    item.className = "recent-item";
-
-    const main = document.createElement("div");
-    main.className = "recent-main";
-    const day = document.createElement("strong");
-    day.textContent = relativeDay(record.createdAt);
-    const time = document.createElement("span");
-    time.textContent =
-      record.kind === "daily"
-        ? `${record.createdAt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} daily total`
-        : record.createdAt.toLocaleString(undefined, {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit"
-          });
-    main.append(day, time);
-
-    const value = document.createElement("span");
-    value.className = "recent-value";
-    value.textContent = `${formatNumber(record.value)} kcal`;
-
-    const deleteButton = document.createElement("button");
-    deleteButton.className = "delete-button";
-    deleteButton.type = "button";
-    deleteButton.title = "Delete";
-    deleteButton.setAttribute("aria-label", "Delete entry");
-    deleteButton.dataset.deleteId = record.id;
-    deleteButton.innerHTML = '<i data-lucide="trash-2"></i>';
-    deleteButton.disabled = !record.id;
-
-    item.append(main, value, deleteButton);
-    fragment.append(item);
-  });
-
-  els.recentList.append(fragment);
-  if (window.lucide) {
-    window.lucide.createIcons();
-  }
-}
-
 function getCurrentWeek() {
   return getWeekForOffset(state.weekOffset);
 }
 
 function getWeekForOffset(weekOffset) {
-  const now = new Date();
+  const week = getWeekForDate(new Date());
+  week.start.setDate(week.start.getDate() + weekOffset * 7);
+  week.days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(week.start);
+    date.setDate(week.start.getDate() + index);
+    return date;
+  });
+  week.end = new Date(week.start);
+  week.end.setDate(week.start.getDate() + 6);
+  return week;
+}
+
+function getWeekForDate(date) {
+  const now = date;
   const start = startOfDay(now);
   const day = start.getDay();
   const mondayOffset = day === 0 ? -6 : 1 - day;
   start.setDate(start.getDate() + mondayOffset);
-  start.setDate(start.getDate() + weekOffset * 7);
 
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start);
@@ -1036,6 +945,16 @@ function getIsoWeekCode(date) {
 
 function getClientTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+function getWeekKey(date) {
+  return getDayKey(startOfDay(date));
+}
+
+function isRecordInWeek(record, week) {
+  const endExclusive = new Date(week.end);
+  endExclusive.setDate(endExclusive.getDate() + 1);
+  return record.createdAt >= week.start && record.createdAt < endExclusive;
 }
 
 function getWeeklyGoal() {
@@ -1074,6 +993,16 @@ function getEffectiveCalorieRecords(records) {
     });
 
   return effective.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+function getRecordCacheKey(record) {
+  if (record.id !== undefined && record.id !== null) {
+    return `id:${record.id}`;
+  }
+  if (record.kind === "daily") {
+    return `daily:${record.dayKey}`;
+  }
+  return `legacy:${record.createdAt.toISOString()}:${record.value}`;
 }
 
 function formatDailyValue(date, calories) {
@@ -1142,19 +1071,6 @@ function isSameDay(left, right) {
   );
 }
 
-function relativeDay(date) {
-  const today = startOfDay(new Date());
-  const target = startOfDay(date);
-  const diff = Math.round((target - today) / 86400000);
-  if (diff === 0) {
-    return "Today";
-  }
-  if (diff === -1) {
-    return "Yesterday";
-  }
-  return date.toLocaleDateString(undefined, { weekday: "long" });
-}
-
 function formatShortDate(date) {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
@@ -1176,4 +1092,5 @@ function formatSignedNumber(value) {
 function setStatus(message, isError = false) {
   els.statusMessage.textContent = message;
   els.statusMessage.classList.toggle("is-error", isError);
+  els.statusMessage.classList.toggle("is-syncing", !isError && message === "Syncing...");
 }
