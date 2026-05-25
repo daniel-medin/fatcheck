@@ -6,6 +6,7 @@ const BURNRATE_STORAGE = "fat-check.burnrate";
 const LEGACY_GOAL_STORAGE = "fat-check.weekly-goal";
 const GOAL_PREFIX = "g";
 const BURNRATE_PREFIX = "b";
+const SETTINGS_VALUE_PATTERN = "^(g|b)\\d+$";
 const KCAL_PER_KG = 3500;
 const MAX_VALUE_LENGTH = 8;
 const MAX_DAILY_CALORIES = 9999;
@@ -134,7 +135,7 @@ function bindEvents() {
 
 function changeWeek(direction) {
   state.weekOffset += direction;
-  render();
+  loadRecords();
 }
 
 async function loadRecords() {
@@ -147,10 +148,18 @@ async function loadRecords() {
 
   setStatus("Syncing BitStore...");
   try {
-    const data = await bitstoreFetch(`/records?take=200&t=${Date.now()}`);
-    const bitstoreRecords = data.records || [];
-    const hasRemoteGoal = syncDailyGoalFromRecords(bitstoreRecords);
-    const hasRemoteBurnrate = syncBurnrateFromRecords(bitstoreRecords);
+    const selectedWeek = getCurrentWeek();
+    const currentWeek = getWeekForOffset(0);
+    const weekRequests = [fetchWeekRecords(selectedWeek)];
+    if (!isSameDay(selectedWeek.start, currentWeek.start)) {
+      weekRequests.push(fetchWeekRecords(currentWeek));
+    }
+
+    const [settingsData, ...weekResults] = await Promise.all([fetchSettingsRecords(), ...weekRequests]);
+    const settingRecords = settingsData.records || [];
+    const bitstoreRecords = weekResults.flatMap((data) => data.records || []);
+    const hasRemoteGoal = syncDailyGoalFromRecords(settingRecords);
+    const hasRemoteBurnrate = syncBurnrateFromRecords(settingRecords);
     if (!hasRemoteGoal && state.dailyGoal && hasBitStoreSetup()) {
       await saveDailyGoalRecord(state.dailyGoal);
     }
@@ -286,11 +295,6 @@ async function deleteRecord(id) {
 }
 
 async function resetAllRecords() {
-  if (!state.records.length) {
-    setStatus("Nothing to reset.");
-    return;
-  }
-
   if (!requireBitStoreSetup()) {
     return;
   }
@@ -303,8 +307,14 @@ async function resetAllRecords() {
 
   setStatus("Resetting...");
   try {
+    const calorieRecords = await fetchAllCalorieRecords();
+    if (!calorieRecords.length) {
+      setStatus("Nothing to reset.");
+      return;
+    }
+
     await Promise.all(
-      state.records
+      calorieRecords
         .filter((record) => record.id)
         .map((record) =>
           bitstoreFetch(`/records/${encodeURIComponent(record.id)}`, {
@@ -415,6 +425,49 @@ async function saveBurnrateRecord(burnrate) {
     },
     body: JSON.stringify({ value: `${BURNRATE_PREFIX}${burnrate}` })
   });
+}
+
+function fetchWeekRecords(week) {
+  const params = new URLSearchParams({
+    week: getIsoWeekCode(week.start),
+    timeZone: getClientTimeZone(),
+    take: "100"
+  });
+  return bitstoreFetch(`/records?${params}`);
+}
+
+function fetchSettingsRecords() {
+  const params = new URLSearchParams({
+    valuePattern: SETTINGS_VALUE_PATTERN,
+    take: "10"
+  });
+  return bitstoreFetch(`/records?${params}`);
+}
+
+async function fetchAllCalorieRecords() {
+  const records = [];
+  let cursor = "";
+  let pageCount = 0;
+
+  do {
+    const params = new URLSearchParams({ take: "200" });
+    if (cursor) {
+      params.set("cursor", cursor);
+    }
+
+    const data = await bitstoreFetch(`/records?${params}`);
+    records.push(...(data.records || []));
+
+    const nextCursor = getNextCursor(data);
+    cursor = nextCursor && nextCursor !== cursor ? nextCursor : "";
+    pageCount += 1;
+  } while (cursor && pageCount < 25);
+
+  return normalizeRecords(records);
+}
+
+function getNextCursor(data) {
+  return data.nextCursor || data.cursor || data.next || "";
 }
 
 async function createCalorieRecord(value) {
@@ -948,12 +1001,16 @@ function renderRecent() {
 }
 
 function getCurrentWeek() {
+  return getWeekForOffset(state.weekOffset);
+}
+
+function getWeekForOffset(weekOffset) {
   const now = new Date();
   const start = startOfDay(now);
   const day = start.getDay();
   const mondayOffset = day === 0 ? -6 : 1 - day;
   start.setDate(start.getDate() + mondayOffset);
-  start.setDate(start.getDate() + state.weekOffset * 7);
+  start.setDate(start.getDate() + weekOffset * 7);
 
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start);
@@ -964,6 +1021,21 @@ function getCurrentWeek() {
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
   return { start, end, days };
+}
+
+function getIsoWeekCode(date) {
+  const thursday = startOfDay(date);
+  const day = thursday.getDay() || 7;
+  thursday.setDate(thursday.getDate() + 4 - day);
+
+  const isoYear = thursday.getFullYear();
+  const yearStart = new Date(isoYear, 0, 1);
+  const week = Math.ceil(((thursday - yearStart) / 86400000 + 1) / 7);
+  return `${isoYear}-W${String(week).padStart(2, "0")}`;
+}
+
+function getClientTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }
 
 function getWeeklyGoal() {
